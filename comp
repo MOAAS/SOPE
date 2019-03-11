@@ -1,0 +1,6 @@
+gcc -Wall -o $1 $1.c 
+if [ $? -eq 0 ] ; then 
+    echo "Successful compilation. " 
+else 
+    echo "COMPILATION ERROR!" 
+fi
