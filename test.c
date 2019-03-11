@@ -20,14 +20,22 @@ typedef struct {
     FILE* outFile;
 } forensicArgs;
 
-int processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
+void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
+
+void displayArgs(forensicArgs args) { // DEBOOG
+    printf("r h md5 sha1 sha256 v o isDir\n");
+    printf("%d %d %d   %d    %d      %d %d %d\n", args.r, args.h, args.md5, args.sha1, args.sha256, args.v, args.o, args.isDir);
+
+}
 
 int main(int argc, char* argv[], char* envp[]) {
     forensicArgs args;
     processArgs(&args, argc, argv, envp);
+    displayArgs(args);
 }
 
-int processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
+
+void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
     args->r = false;
     args->h = false;
     args->md5 = false;
@@ -94,6 +102,22 @@ int processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
         }
     }
     // process last arg
-    return 0;
+    char* pathname = argv[argc - 1];
+    struct stat st;
+    if (stat(pathname, &st) == -1) {
+        perror(pathname);
+        exit(8);
+    }
+    if (S_ISDIR(st.st_mode)) {
+        args->isDir = true;
+        args->dir = opendir(pathname);
+    }
+    else if (S_ISREG(st.st_mode)) {
+        args->file = fopen(pathname, "r");
+    }
+    else {
+        printf("Error: %s is not directory or file!\n", pathname);
+        exit(9);
+    }
 
 }
