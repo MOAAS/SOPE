@@ -14,10 +14,9 @@ typedef struct {
     bool v;
     bool o;
     bool isDir;
-    DIR* dir;
-    FILE* file;
-    FILE* logFile;
-    FILE* outFile;
+    char* path;    
+    char* logFilePath;
+    char* outFilePath;
 } forensicArgs;
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
@@ -35,6 +34,7 @@ int main(int argc, char* argv[], char* envp[]) {
     processArgs(&args, argc, argv, envp);
     if (args.isDir)
         return 0;
+   // execvpe(arg)
    // scanfile(args);
 }
 
@@ -46,9 +46,9 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
     args->sha1 = false;
     args->sha256 = false;
     args->o = false;
-    args->logFile = NULL;
-    args->outFile = NULL;
-    args->file = NULL;    
+    args->logFilePath = NULL;
+    args->outFilePath = NULL;
+    args->path = NULL;    
     if (argc < 2) {
         printf("Usage: forensic [-r] [-h [md5[,sha1[,sha256]]] [-o <outfile>] [-v] <file|dir>\n");
         exit(1);
@@ -80,12 +80,16 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
                 printf("Error: Need to specify an output file.\n");
                 exit(3);
             }
-            args->outFile = fopen(argv[i + 1], "w");
-            if (args->outFile == NULL) {
+            args->outFilePath = argv[i + 1];
+            FILE* outFile = fopen(argv[i + 1], "w");
+            if (outFile == NULL) {
                 perror(argv[i+1]);
                 exit(4);
             }
-            else i++;       
+            else {
+                i++;       
+                fclose(outFile);
+            }
         }
         else if (strcmp(argv[i], "-v") == 0) {
             args->v = true;
@@ -94,11 +98,13 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
                 printf("Error: LOGFILENAME environment variable does not exist.\n");
                 exit(5);
             }
-            args->logFile = fopen(logfilepath, "w");
-            if (args->logFile == NULL) {
+            args->logFilePath = logfilepath;
+            FILE* logFile = fopen(logfilepath, "w");
+            if (logFile == NULL) {
                 perror(logfilepath);
                 exit(6);
-            }            
+            }
+            else fclose(logFile);
         }
         else {
             printf("Error: Unrecognized argument: %s \n", argv[i]);
@@ -114,14 +120,9 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
     }
     if (S_ISDIR(st.st_mode)) {
         args->isDir = true;
-        args->dir = opendir(pathname);
     }
-    else if (S_ISREG(st.st_mode)) {
-        args->file = fopen(pathname, "r");
-    }
-    else {
+    else if (!S_ISREG(st.st_mode)) {
         printf("Error: %s is not directory or file!\n", pathname);
         exit(9);
     }
-
 }
