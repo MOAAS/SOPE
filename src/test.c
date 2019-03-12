@@ -22,16 +22,20 @@ typedef struct {
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
 
+/*
 void displayArgs(forensicArgs args) { // DEBOOG
     printf("r h md5 sha1 sha256 v o isDir\n");
     printf("%d %d %d   %d    %d      %d %d %d\n", args.r, args.h, args.md5, args.sha1, args.sha256, args.v, args.o, args.isDir);
 
 }
+*/
 
 int main(int argc, char* argv[], char* envp[]) {
     forensicArgs args;
     processArgs(&args, argc, argv, envp);
-    displayArgs(args);
+    if (args.isDir)
+        return 0;
+   // scanfile(args);
 }
 
 
