@@ -5,8 +5,10 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <dirent.h>
+#include <time.h>
 #include <sys/types.h> 
 #include <sys/stat.h>
+
 
 // Parte 1
 
@@ -24,17 +26,13 @@ typedef struct {
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
 
-/*
-void displayArgs(forensicArgs args) { // DEBOOG
-    printf("r h md5 sha1 sha256 v o isDir\n");
-    printf("%d %d %d   %d    %d      %d %d %d\n", args.r, args.h, args.md5, args.sha1, args.sha256, args.v, args.o, args.isDir);
-
-}*/
-
 // Parte 2
 
 int scanfile(char* filename, forensicArgs * args);
-char* getFileType(struct stat st);
+char* getFileType(char* filename);
+char* getFileAccess(struct stat st);
+char* getCheckSum(char* filename, int type);
+char* timestampToISO(time_t timestamp);
 
 // Parte 3
 
@@ -140,36 +138,178 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
 // Parte 2 - Extrair  a  informação  solicitada  de  apenas  um  ficheiro  e  imprimi-la  na  saída  padrãode  acordo  com  os argumentos passados.
 //         - Efetuar  o  mesmo  procedimento  mas  agora,  implementando  a  operação  da  opção  '-o'  (escrita  no  ficheiro designado).
 int scanfile(char* filename, forensicArgs * args) {
-    // 10% feito
+    int saved_stdout = 0;
+    // If -o is an option, redirect STDOUT to the specified file, saving STDOUT's file descriptor
+    if (args->o) {
+        saved_stdout = dup(STDOUT_FILENO);
+        int fd_out = open(args->outFilePath, O_WRONLY | O_CREAT | O_APPEND);
+        if (fd_out == -1) {
+            perror(args->outFilePath);
+            return 1;
+        }
+        dup2(fd_out, STDOUT_FILENO);
+        close(fd_out);
+    }
+
+    // Opens the file
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
         perror(filename);
         return 1;
     }
     struct stat st;
+    // Gets and prints the desired info
     stat(filename, &st);
-    char* file_type = getFileType(st); 
-    printf("%s,%s,%ld,%s,%ld,%ld\n", filename, file_type, st.st_size, "rw", st.st_ctime, st.st_mtime);
-    return 0;
+    char* file_type = getFileType(filename); 
+    char* file_access = getFileAccess(st);
+    char* changeTime = timestampToISO(st.st_ctime);
+    char* modifyTime = timestampToISO(st.st_mtime);
+    char fileInfo[500];
+    sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, st.st_size, file_access, changeTime, modifyTime);
+    write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
+    // Gets and prints the checksums if requested
+    if (args->h) {
+        char* checkSum;
+        if (args->md5) {
+            checkSum = getCheckSum(filename, 0);
+            write(STDOUT_FILENO, ",", 1);
+            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            free(checkSum);
+        }
 
+        if (args->sha1) {
+            checkSum = getCheckSum(filename, 1);
+            write(STDOUT_FILENO, ",", 1);
+            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            free(checkSum);
+        }
+
+        if (args->sha256) {
+            checkSum = getCheckSum(filename, 2);
+            write(STDOUT_FILENO, ",", 1);
+            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            free(checkSum);
+        }
+    }
+    write(STDOUT_FILENO, "\n", 1);
+
+    // If -o is an option, restore STDOUT
+    if (args->o) {
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+    }
+    return 0;  
 }
 
-char* getFileType(struct stat st) {
+char* getFileType(char* filename) {
     char* str = malloc(100);
-    if (S_ISREG(st.st_mode))
-        str = "ASCII Text";
-    else if (S_ISDIR(st.st_mode))
-        str = "Directory";
-    else if (S_ISCHR(st.st_mode))
-        str = "character special";
-    else if (S_ISBLK(st.st_mode))
-        str = "block special";
-    else if (S_ISFIFO(st.st_mode))
-        str = "fifo";
-    else if (S_ISLNK(st.st_mode))
-        str = "symbolic link";
-    else if (S_ISSOCK(st.st_mode))
-        str = "socket";
-    else str = "unknown";
+    char tempFileName[100];
+    char command[100];
+    // Create temporary file to store file type
+    sprintf(tempFileName, "Info%s", filename);
+    // Calls file command to get file type
+    sprintf(command, "file %s >> %s", filename, tempFileName);
+    if (system(command) != 0) {
+        printf("%s: command failed", command);
+        return NULL;
+    }
+    FILE* tempFile = fopen(tempFileName, "r");
+    if (tempFile == NULL) {
+        perror(tempFileName);
+        return NULL;
+    }
+    // Reads the file type from temp file
+    fread(str, sizeof(char), strlen(filename) + 2, tempFile);
+    fgets(str, 1000, tempFile);
+    int length = strlen(str);
+    // Cleans up the string
+    if (str[length - 1] == '\n')
+        str[length - 1] = 0;
+    for (int i = 0; i < length; i++) {
+        if (str[i] == ',')
+            str[i] = ' ';
+    }
+    // Closes and deletes the file
+    fclose(tempFile);
+    if (unlink(tempFileName) == -1) {
+        perror(tempFileName);
+        return NULL;
+    }
     return str;
 }
+
+char* getFileAccess(struct stat st) {
+    char* str = malloc(100);
+    strcpy(str, "---------");
+    if (st.st_mode & S_IRUSR)
+        str[0] = 'r';
+    if (st.st_mode & S_IWUSR)
+        str[1] = 'w';    
+    if (st.st_mode & S_IXUSR)
+        str[2] = 'x';    
+    if (st.st_mode & S_IRGRP)
+        str[3] = 'r';    
+    if (st.st_mode & S_IWGRP)
+        str[4] = 'w';    
+    if (st.st_mode & S_IXGRP)
+        str[5] = 'x';    
+    if (st.st_mode & S_IROTH)
+        str[6] = 'r';    
+    if (st.st_mode & S_IWOTH)
+        str[7] = 'w';
+    if (st.st_mode & S_IXOTH)
+        str[8] = 'x';
+    return str;
+    
+}
+
+char* getCheckSum(char* filename, int type) {
+    char* str = malloc(200);
+    char tempFileName[100];
+    char command[100];    
+    // Create temporary file to store file type
+    sprintf(tempFileName, "Info%s", filename);
+    // Creates and calls md5sum/sha1sum/sha256sum command to get sum
+    if (type == 0)
+        sprintf(command, "md5sum %s >> %s", filename, tempFileName);
+    else if (type == 1)
+        sprintf(command, "sha1sum %s >> %s", filename, tempFileName);
+    else if (type == 2)
+        sprintf(command, "sha256sum %s >> %s", filename, tempFileName);
+    else {
+        printf("%d: Unknown sum type.\n", type);
+        return NULL;
+    }
+    if (system(command) != 0) {
+        printf("%s: command failed", command);
+        return NULL;
+    }
+    FILE* tempFile = fopen(tempFileName, "r");
+    if (tempFile == NULL) {
+        perror(tempFileName);
+        return NULL;
+    }
+    // Reads the checksum from temp file
+    fgets(str, 1000, tempFile);
+    int length = strlen(str);
+    // Cleans up the string
+    if (str[length - 1] == '\n')
+        str[length - 1] = 0;
+    str[length - strlen(filename) - 3] = '\0';
+    // Closes and deletes the file
+    fclose(tempFile);
+    if (unlink(tempFileName) == -1) {
+        perror(tempFileName);
+        return NULL;
+    }
+    return str;
+}
+
+char* timestampToISO(time_t timestamp) {
+    char* str = malloc(100);
+    struct tm* t = localtime(&timestamp);
+    sprintf(str, "%d-%02d-%02dT%02d:%02d:%02d", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+    return str;
+}
+
+// Parte 3 - Repetir o passo anterior para todos os ficheiros de um diretório.
