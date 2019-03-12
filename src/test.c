@@ -8,6 +8,8 @@
 #include <sys/types.h> 
 #include <sys/stat.h>
 
+// Parte 1
+
 typedef struct {
     bool r;
     bool h;
@@ -21,24 +23,31 @@ typedef struct {
 } forensicArgs;
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
-void scanfile(forensicArgs * args);
+
 /*
 void displayArgs(forensicArgs args) { // DEBOOG
     printf("r h md5 sha1 sha256 v o isDir\n");
     printf("%d %d %d   %d    %d      %d %d %d\n", args.r, args.h, args.md5, args.sha1, args.sha256, args.v, args.o, args.isDir);
 
-}
-*/
+}*/
+
+// Parte 2
+
+int scanfile(char* filename, forensicArgs * args);
+char* getFileType(struct stat st);
+
+// Parte 3
+
 
 int main(int argc, char* argv[], char* envp[]) {
     forensicArgs args;
     processArgs(&args, argc, argv, envp);
     if (args.isDir)
         return 0;
-   // scanfile(args);
+    scanfile(args.path, &args);
 }
 
-
+// Parte 1 - Receber, tratar e guardar os argumentos e variáveis de ambiente.
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
     args->r = false;
     args->h = false;
@@ -125,8 +134,42 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
         printf("Error: %s is not directory or file!\n", pathname);
         exit(9);
     }
+    args->path = pathname;
 }
 
-void scanfile(forensicArgs * args) {
+// Parte 2 - Extrair  a  informação  solicitada  de  apenas  um  ficheiro  e  imprimi-la  na  saída  padrãode  acordo  com  os argumentos passados.
+//         - Efetuar  o  mesmo  procedimento  mas  agora,  implementando  a  operação  da  opção  '-o'  (escrita  no  ficheiro designado).
+int scanfile(char* filename, forensicArgs * args) {
+    // 10% feito
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        perror(filename);
+        return 1;
+    }
+    struct stat st;
+    stat(filename, &st);
+    char* file_type = getFileType(st); 
+    printf("%s,%s,%ld,%s,%ld,%ld\n", filename, file_type, st.st_size, "rw", st.st_ctime, st.st_mtime);
+    return 0;
 
+}
+
+char* getFileType(struct stat st) {
+    char* str = malloc(100);
+    if (S_ISREG(st.st_mode))
+        str = "ASCII Text";
+    else if (S_ISDIR(st.st_mode))
+        str = "Directory";
+    else if (S_ISCHR(st.st_mode))
+        str = "character special";
+    else if (S_ISBLK(st.st_mode))
+        str = "block special";
+    else if (S_ISFIFO(st.st_mode))
+        str = "fifo";
+    else if (S_ISLNK(st.st_mode))
+        str = "symbolic link";
+    else if (S_ISSOCK(st.st_mode))
+        str = "socket";
+    else str = "unknown";
+    return str;
 }
