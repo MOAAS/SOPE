@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h> 
 #include <stdlib.h> 
-#include <unistd.h> 
+#include <fcntl.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <dirent.h>
 #include <sys/types.h> 
@@ -14,13 +15,13 @@ typedef struct {
     bool v;
     bool o;
     bool isDir;
-    char* path;    
+    char* path;
     char* logFilePath;
     char* outFilePath;
 } forensicArgs;
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
-
+void scanfile(forensicArgs * args);
 /*
 void displayArgs(forensicArgs args) { // DEBOOG
     printf("r h md5 sha1 sha256 v o isDir\n");
@@ -34,7 +35,6 @@ int main(int argc, char* argv[], char* envp[]) {
     processArgs(&args, argc, argv, envp);
     if (args.isDir)
         return 0;
-   // execvpe(arg)
    // scanfile(args);
 }
 
@@ -81,9 +81,9 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
                 exit(3);
             }
             args->outFilePath = argv[i + 1];
-            FILE* outFile = fopen(argv[i + 1], "w");
+            FILE* outFile = fopen(args->outFilePath, "w");
             if (outFile == NULL) {
-                perror(argv[i+1]);
+                perror(args->outFilePath);
                 exit(4);
             }
             else {
@@ -125,4 +125,8 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
         printf("Error: %s is not directory or file!\n", pathname);
         exit(9);
     }
+}
+
+void scanfile(forensicArgs * args) {
+
 }
