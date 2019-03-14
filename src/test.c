@@ -200,24 +200,18 @@ int scanfile(char* filename, forensicArgs * args) {
 
 char* getFileType(char* filename) {
     char* str = malloc(100);
-    char tempFileName[90];
+    FILE* fp;
     char command[100];
-    // Create temporary file to store file type
-    sprintf(tempFileName, "Info%s", filename);
     // Calls file command to get file type
-    sprintf(command, "file %s >> %s", filename, tempFileName);
-    if (system(command) != 0) {
+    sprintf(command, "file %s", filename);
+    if ((fp = popen(command,"r")) == NULL) {
         printf("%s: command failed", command);
         return NULL;
     }
-    FILE* tempFile = fopen(tempFileName, "r");
-    if (tempFile == NULL) {
-        perror(tempFileName);
-        return NULL;
-    }
-    // Reads the file type from temp file
-    fread(str, sizeof(char), strlen(filename) + 2, tempFile);
-    fgets(str, 1000, tempFile);
+    // Reads the file type from pipe
+    fread(str, sizeof(char), strlen(filename) + 2, fp);
+    fgets(str, 1000, fp);
+    
     int length = strlen(str);
     // Cleans up the string
     if (str[length - 1] == '\n')
@@ -226,12 +220,8 @@ char* getFileType(char* filename) {
         if (str[i] == ',')
             str[i] = ' ';
     }
-    // Closes and deletes the file
-    fclose(tempFile);
-    if (unlink(tempFileName) == -1) {
-        perror(tempFileName);
-        return NULL;
-    }
+    // Closes the pipe
+    fclose(fp);
     return str;
 }
 
