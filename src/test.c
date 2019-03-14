@@ -66,20 +66,17 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
         }
         else if (strcmp(argv[i], "-h") == 0) {
             args->h = true;
-            while (i + 1 < argc) {
-                if (strcmp(argv[i + 1], "md5") == 0)
-                    args->md5 = true;
-                else if (strcmp(argv[i + 1], "sha1") == 0)
-                    args->sha1 = true;
-                else if (strcmp(argv[i + 1], "sha256") == 0)
-                    args->sha256 = true;
-                else break;
-                i++;
-            }
+            if(strstr(argv[i+1], "md5") != NULL)
+                args->md5 = true;
+            if(strstr(argv[i+1], "sha1") != NULL)
+                args->sha1 = true;
+            if(strstr(argv[i+1], "sha256") != NULL)
+                args->sha256 = true;
             if (!args->md5 && !args->sha1 && !args->sha256) {
                 printf("Error: Need to pick at least one hash (md5/sha1/sha256).\n");
                 exit(2);
             }
+            i++;
         }
         else if (strcmp(argv[i], "-o") == 0) {
             args->o = true;
@@ -135,7 +132,7 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
     args->path = pathname;
 }
 
-// Parte 2 - Extrair  a  informação  solicitada  de  apenas  um  ficheiro  e  imprimi-la  na  saída  padrãode  acordo  com  os argumentos passados.
+// Parte 2 - Extrair  a  informação  solicitada  de  apenas  um  ficheiro  e  imprimi-la  na  saída  padrão de  acordo  com  os argumentos passados.
 //         - Efetuar  o  mesmo  procedimento  mas  agora,  implementando  a  operação  da  opção  '-o'  (escrita  no  ficheiro designado).
 int scanfile(char* filename, forensicArgs * args) {
     int saved_stdout = 0;
@@ -203,7 +200,7 @@ int scanfile(char* filename, forensicArgs * args) {
 
 char* getFileType(char* filename) {
     char* str = malloc(100);
-    char tempFileName[100];
+    char tempFileName[90];
     char command[100];
     // Create temporary file to store file type
     sprintf(tempFileName, "Info%s", filename);
@@ -265,43 +262,32 @@ char* getFileAccess(struct stat st) {
 
 char* getCheckSum(char* filename, int type) {
     char* str = malloc(200);
-    char tempFileName[100];
+    FILE* fp;
     char command[100];    
-    // Create temporary file to store file type
-    sprintf(tempFileName, "Info%s", filename);
     // Creates and calls md5sum/sha1sum/sha256sum command to get sum
     if (type == 0)
-        sprintf(command, "md5sum %s >> %s", filename, tempFileName);
+        sprintf(command, "md5sum %s", filename);
     else if (type == 1)
-        sprintf(command, "sha1sum %s >> %s", filename, tempFileName);
+        sprintf(command, "sha1sum %s", filename);
     else if (type == 2)
-        sprintf(command, "sha256sum %s >> %s", filename, tempFileName);
+        sprintf(command, "sha256sum %s", filename);
     else {
         printf("%d: Unknown sum type.\n", type);
         return NULL;
     }
-    if (system(command) != 0) {
+    if ((fp = popen(command, "r")) == NULL) {
         printf("%s: command failed", command);
         return NULL;
     }
-    FILE* tempFile = fopen(tempFileName, "r");
-    if (tempFile == NULL) {
-        perror(tempFileName);
-        return NULL;
-    }
     // Reads the checksum from temp file
-    fgets(str, 1000, tempFile);
+    fgets(str, 200, fp);
     int length = strlen(str);
     // Cleans up the string
     if (str[length - 1] == '\n')
         str[length - 1] = 0;
     str[length - strlen(filename) - 3] = '\0';
-    // Closes and deletes the file
-    fclose(tempFile);
-    if (unlink(tempFileName) == -1) {
-        perror(tempFileName);
-        return NULL;
-    }
+    // Closes the pipe
+    fclose(fp);
     return str;
 }
 
