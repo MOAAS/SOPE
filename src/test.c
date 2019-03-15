@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/types.h> 
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 
 // Parte 1
@@ -205,8 +206,14 @@ int scanDir(char * dirname, forensicArgs * args)
     DIR *dir = opendir(dirname);
     struct dirent *ent;
     while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
         if (ent->d_type == DT_REG)
-            scanfile(ent->d_name, args);
+        {
+            char * newDir = (char *) malloc(100);
+            sprintf(newDir, "%s/%s", dirname, ent->d_name);
+            scanfile(newDir, args);
+        }
         else if (ent->d_type == DT_DIR)
         {
             pid_t pid = fork();
@@ -217,12 +224,14 @@ int scanDir(char * dirname, forensicArgs * args)
                 continue;
             } else {
                 char * newDir = (char *) malloc(100);
-                sprintf(newDir, "%s/%s\0", dirname, ent->d_name);
+                sprintf(newDir, "%s/%s", dirname, ent->d_name);
                 scanDir(newDir, args);
+                exit(0);
             }
         }
     }
     closedir(dir);
+    wait(NULL);
     return 0;
 }
 
