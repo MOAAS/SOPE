@@ -44,8 +44,7 @@ int main(int argc, char* argv[], char* envp[]) {
     processArgs(&args, argc, argv, envp);
     if (args.isDir)
         scanDir(args.path, &args);
-    else
-        scanfile(args.path, &args);
+    else scanfile(args.path, &args);
 }
 
 // Parte 1 - Receber, tratar e guardar os argumentos e variáveis de ambiente.
@@ -167,6 +166,10 @@ int scanfile(char* filename, forensicArgs * args) {
     char fileInfo[500];
     sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, st.st_size, file_access, changeTime, modifyTime);
     write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
+    free(file_type);
+    free(file_access);
+    free(changeTime);
+    free(modifyTime);
     // Gets and prints the checksums if requested
     if (args->h) {
         char* checkSum;
@@ -199,42 +202,6 @@ int scanfile(char* filename, forensicArgs * args) {
         close(saved_stdout);
     }
     return 0;  
-}
-
-int scanDir(char * dirname, forensicArgs * args)
-{
-    DIR *dir = opendir(dirname);
-    struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
-        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-            continue;
-        if (ent->d_type == DT_REG)
-        {
-            char * newDir = (char *) malloc(100);
-            sprintf(newDir, "%s/%s", dirname, ent->d_name);
-            scanfile(newDir, args);
-        }
-        else if (ent->d_type == DT_DIR)
-        {
-            if(args->r) {
-                pid_t pid = fork();
-                if (pid < 0) {
-                    printf("Error creating child process\n");
-                    exit(1);
-                } else if (pid == 0) {
-                    continue;
-                } else {
-                    char * newDir = (char *) malloc(100);
-                    sprintf(newDir, "%s/%s", dirname, ent->d_name);
-                    scanDir(newDir, args);
-                    exit(0);
-                }
-            }
-        }
-    }
-    closedir(dir);
-    wait(NULL);
-    return 0;
 }
 
 char* getFileType(char* filename) {
@@ -328,3 +295,33 @@ char* timestampToISO(time_t timestamp) {
 }
 
 // Parte 3 - Repetir o passo anterior para todos os ficheiros de um diretório.
+
+int scanDir(char * dirname, forensicArgs * args) {
+    DIR *dir = opendir(dirname);
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+            continue;
+        if (ent->d_type == DT_REG) {
+            char * newDir = (char *) malloc(100);
+            sprintf(newDir, "%s/%s", dirname, ent->d_name);
+            scanfile(newDir, args);
+        }
+        else if (ent->d_type == DT_DIR && args->r) {
+            pid_t pid = fork();
+            if (pid < 0) {
+                printf("Error creating child process\n");
+                exit(1);
+            } else if (pid == 0) {
+                continue;
+            } else {
+                char * newDir = (char *) malloc(strlen(dirname) + strlen(ent->d_name) + 5);
+                sprintf(newDir, "%s/%s", dirname, ent->d_name);
+                return scanDir(newDir, args);
+            }
+        }
+    }
+    closedir(dir);
+    wait(NULL);
+    return 0;
+}
