@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#define MAXCHAR 1000
 
 // Parte 1
 
@@ -38,6 +39,7 @@ char* timestampToISO(time_t timestamp);
 // Parte 3
 
 int scanDir(char* dirname, forensicArgs * args);
+void waitForChildren();
 
 int main(int argc, char* argv[], char* envp[]) {
     forensicArgs args;
@@ -163,7 +165,7 @@ int scanfile(char* filename, forensicArgs * args) {
     char* file_access = getFileAccess(st);
     char* changeTime = timestampToISO(st.st_ctime);
     char* modifyTime = timestampToISO(st.st_mtime);
-    char fileInfo[1000];
+    char fileInfo[MAXCHAR];
     sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, st.st_size, file_access, changeTime, modifyTime);
     //write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
     free(file_type);
@@ -176,10 +178,6 @@ int scanfile(char* filename, forensicArgs * args) {
         if (args->md5) {
             checkSum = getCheckSum(filename, 0);
             strcat(fileInfo, ",");
-            strcat(fileInfo, checkSum);
-           //sprintf(fileInfo, "%s,%s", fileInfo, checkSum);
-            //write(STDOUT_FILENO, ",", 1);
-            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
 
@@ -187,8 +185,6 @@ int scanfile(char* filename, forensicArgs * args) {
             checkSum = getCheckSum(filename, 1);
             strcat(fileInfo, ",");
             strcat(fileInfo, checkSum);
-            //write(STDOUT_FILENO, ",", 1);
-            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
 
@@ -196,8 +192,6 @@ int scanfile(char* filename, forensicArgs * args) {
             checkSum = getCheckSum(filename, 2);
             strcat(fileInfo, ",");
             strcat(fileInfo, checkSum);
-            //write(STDOUT_FILENO, ",", 1);
-            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
     }
@@ -213,9 +207,9 @@ int scanfile(char* filename, forensicArgs * args) {
 }
 
 char* getFileType(char* filename) {
-    char* str = malloc(100);
+    char* str = malloc(MAXCHAR);
     FILE* fp;
-    char command[100];
+    char command[MAXCHAR];
     // Calls file command to get file type
     sprintf(command, "file %s", filename);
     if ((fp = popen(command,"r")) == NULL) {
@@ -240,7 +234,7 @@ char* getFileType(char* filename) {
 }
 
 char* getFileAccess(struct stat st) {
-    char* str = malloc(100);
+    char* str = malloc(MAXCHAR);
     strcpy(str, "---------");
     if (st.st_mode & S_IRUSR)
         str[0] = 'r';
@@ -265,9 +259,9 @@ char* getFileAccess(struct stat st) {
 }
 
 char* getCheckSum(char* filename, int type) {
-    char* str = malloc(200);
+    char* str = malloc(MAXCHAR);
     FILE* fp;
-    char command[100];    
+    char command[MAXCHAR];    
     // Creates and calls md5sum/sha1sum/sha256sum command to get sum
     if (type == 0)
         sprintf(command, "md5sum %s", filename);
@@ -296,7 +290,7 @@ char* getCheckSum(char* filename, int type) {
 }
 
 char* timestampToISO(time_t timestamp) {
-    char* str = malloc(100);
+    char* str = malloc(MAXCHAR);
     struct tm* t = localtime(&timestamp);
     sprintf(str, "%d-%02d-%02dT%02d:%02d:%02d", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
     return str;
@@ -311,7 +305,7 @@ int scanDir(char * dirname, forensicArgs * args) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
             continue;
         if (ent->d_type == DT_REG) {
-            char * newDir = (char *) malloc(100);
+            char * newDir = (char *) malloc(MAXCHAR);
             sprintf(newDir, "%s/%s", dirname, ent->d_name);
             scanfile(newDir, args);
         }
@@ -323,13 +317,21 @@ int scanDir(char * dirname, forensicArgs * args) {
             } else if (pid == 0) {
                 continue;
             } else {
-                char * newDir = (char *) malloc(strlen(dirname) + strlen(ent->d_name) + 5);
+                char * newDir = (char *) malloc(MAXCHAR);
                 sprintf(newDir, "%s/%s", dirname, ent->d_name);
                 return scanDir(newDir, args);
             }
         }
     }
     closedir(dir);
-    wait(NULL);
+    waitForChildren();
     return 0;
+}
+
+void waitForChildren() {
+    pid_t wait_ret;
+    do {
+        // wait ret is the ret value of wait (ret meaning return)
+        wait_ret = wait(&status);
+    } while (errno != ECHILD && wait_ret != -1);
 }
