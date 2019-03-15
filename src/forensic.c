@@ -165,8 +165,8 @@ int scanfile(char* filename, forensicArgs * args) {
     char* file_access = getFileAccess(st);
     char* changeTime = timestampToISO(st.st_ctime);
     char* modifyTime = timestampToISO(st.st_mtime);
-    char fileInfo[MAXCHAR];
-    sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, st.st_size, file_access, changeTime, modifyTime);
+    char fileInfo[1000];
+    sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, (long) st.st_size, file_access, changeTime, modifyTime);
     //write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
     free(file_type);
     free(file_access);
