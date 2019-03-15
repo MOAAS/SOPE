@@ -1,7 +1,5 @@
-all: test
-
-test: test.c
-	cc -Wall -o test test.c
+forensic: forensic.c
+	cc -Wall -o forensic forensic.c
 		
 clean:
-	rm -f test
+	rm -f forensic
