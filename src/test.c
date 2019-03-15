@@ -36,13 +36,15 @@ char* timestampToISO(time_t timestamp);
 
 // Parte 3
 
+int scanDir(char* dirname, forensicArgs * args);
 
 int main(int argc, char* argv[], char* envp[]) {
     forensicArgs args;
     processArgs(&args, argc, argv, envp);
     if (args.isDir)
-        return 0;
-    scanfile(args.path, &args);
+        scanDir(args.path, &args);
+    else
+        scanfile(args.path, &args);
 }
 
 // Parte 1 - Receber, tratar e guardar os argumentos e variáveis de ambiente.
@@ -198,6 +200,32 @@ int scanfile(char* filename, forensicArgs * args) {
     return 0;  
 }
 
+int scanDir(char * dirname, forensicArgs * args)
+{
+    DIR *dir = opendir(dirname);
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (ent->d_type == DT_REG)
+            scanfile(ent->d_name, args);
+        else if (ent->d_type == DT_DIR)
+        {
+            pid_t pid = fork();
+            if (pid < 0) {
+                printf("Error creating child process\n");
+                exit(1);
+            } else if (pid == 0) {
+                continue;
+            } else {
+                char * newDir = (char *) malloc(100);
+                sprintf(newDir, "%s/%s\0", dirname, ent->d_name);
+                scanDir(newDir, args);
+            }
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
 char* getFileType(char* filename) {
     char* str = malloc(100);
     FILE* fp;
@@ -211,7 +239,7 @@ char* getFileType(char* filename) {
     // Reads the file type from pipe
     fread(str, sizeof(char), strlen(filename) + 2, fp);
     fgets(str, 1000, fp);
-    
+
     int length = strlen(str);
     // Cleans up the string
     if (str[length - 1] == '\n')
@@ -269,7 +297,7 @@ char* getCheckSum(char* filename, int type) {
         printf("%s: command failed", command);
         return NULL;
     }
-    // Reads the checksum from temp file
+    // Reads the checksum from pipe
     fgets(str, 200, fp);
     int length = strlen(str);
     // Cleans up the string
