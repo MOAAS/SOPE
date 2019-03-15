@@ -163,9 +163,9 @@ int scanfile(char* filename, forensicArgs * args) {
     char* file_access = getFileAccess(st);
     char* changeTime = timestampToISO(st.st_ctime);
     char* modifyTime = timestampToISO(st.st_mtime);
-    char fileInfo[500];
+    char fileInfo[1000];
     sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, st.st_size, file_access, changeTime, modifyTime);
-    write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
+    //write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
     free(file_type);
     free(file_access);
     free(changeTime);
@@ -175,26 +175,30 @@ int scanfile(char* filename, forensicArgs * args) {
         char* checkSum;
         if (args->md5) {
             checkSum = getCheckSum(filename, 0);
-            write(STDOUT_FILENO, ",", 1);
-            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            sprintf(fileInfo, "%s,%s", fileInfo, checkSum);
+            //write(STDOUT_FILENO, ",", 1);
+            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
 
         if (args->sha1) {
             checkSum = getCheckSum(filename, 1);
-            write(STDOUT_FILENO, ",", 1);
-            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            sprintf(fileInfo, "%s,%s", fileInfo, checkSum);
+            //write(STDOUT_FILENO, ",", 1);
+            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
 
         if (args->sha256) {
             checkSum = getCheckSum(filename, 2);
-            write(STDOUT_FILENO, ",", 1);
-            write(STDOUT_FILENO, checkSum, strlen(checkSum));
+            sprintf(fileInfo, "%s,%s", fileInfo, checkSum);
+            //write(STDOUT_FILENO, ",", 1);
+            //write(STDOUT_FILENO, checkSum, strlen(checkSum));
             free(checkSum);
         }
     }
-    write(STDOUT_FILENO, "\n", 1);
+    strcat(fileInfo, "\n");
+    write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
 
     // If -o is an option, restore STDOUT
     if (args->o) {
