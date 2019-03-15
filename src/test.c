@@ -216,17 +216,19 @@ int scanDir(char * dirname, forensicArgs * args)
         }
         else if (ent->d_type == DT_DIR)
         {
-            pid_t pid = fork();
-            if (pid < 0) {
-                printf("Error creating child process\n");
-                exit(1);
-            } else if (pid == 0) {
-                continue;
-            } else {
-                char * newDir = (char *) malloc(100);
-                sprintf(newDir, "%s/%s", dirname, ent->d_name);
-                scanDir(newDir, args);
-                exit(0);
+            if(args->r) {
+                pid_t pid = fork();
+                if (pid < 0) {
+                    printf("Error creating child process\n");
+                    exit(1);
+                } else if (pid == 0) {
+                    continue;
+                } else {
+                    char * newDir = (char *) malloc(100);
+                    sprintf(newDir, "%s/%s", dirname, ent->d_name);
+                    scanDir(newDir, args);
+                    exit(0);
+                }
             }
         }
     }
