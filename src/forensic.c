@@ -6,11 +6,17 @@
 #include <stdbool.h>
 #include <dirent.h>
 #include <time.h>
+#include <errno.h>
 #include <sys/types.h> 
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/times.h>
 
 #define MAXCHAR 1000
+
+static int numDirs = 0;
+static int numFiles = 0;
+static clock_t startTime = 0;
 
 // Parte 1
 
@@ -36,14 +42,21 @@ char* getFileAccess(struct stat st);
 char* getCheckSum(char* filename, int type);
 char* timestampToISO(time_t timestamp);
 
-// Parte 3
+// Parte 3, 4, 5
 
 int scanDir(char* dirname, forensicArgs * args);
 void waitForChildren();
 
+// Parte 6
+
+void addLog(char* logFilePath, char* act);
+
 int main(int argc, char* argv[], char* envp[]) {
+    startTime = times(NULL);
     forensicArgs args;
     processArgs(&args, argc, argv, envp);
+    if (args.v)
+        addLog(args.logFilePath, "testest");
     if (args.isDir)
         scanDir(args.path, &args);
     else scanfile(args.path, &args);
@@ -296,7 +309,7 @@ char* timestampToISO(time_t timestamp) {
     return str;
 }
 
-// Parte 3 - Repetir o passo anterior para todos os ficheiros de um diretório.
+// Parte 3/4/5 - Repetir o passo anterior para todos os ficheiros de um diretório, funcionalidade recursiva.
 
 int scanDir(char * dirname, forensicArgs * args) {
     DIR *dir = opendir(dirname);
@@ -332,6 +345,19 @@ void waitForChildren() {
     pid_t wait_ret;
     do {
         // wait ret is the ret value of wait (ret meaning return)
-        wait_ret = wait(&status);
+        wait_ret = wait(NULL);
     } while (errno != ECHILD && wait_ret != -1);
+}
+
+// Parte 6 - Adicionar as funcionalidades de registo (log).
+
+void addLog(char* logFilePath, char* act) {
+    FILE* logFile = fopen(logFilePath, "w");
+    if (logFile == NULL)
+        return;
+    char logLine[MAXCHAR];
+    clock_t now = times(NULL);
+    sprintf(logLine, "%f - %08d - %s", (double)(now - startTime)/sysconf(_SC_CLK_TCK) * 1000, getpid(), act);
+    fwrite(logLine, sizeof(char), strlen(logLine), logFile);
+    fclose(logFile);
 }
