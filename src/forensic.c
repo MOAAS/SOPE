@@ -258,7 +258,8 @@ int scanfile(char* filename, forensicArgs * args) {
         dup2(saved_stdout, STDOUT_FILENO);
         close(saved_stdout);
     }
-    addLog(args->logFilePath, fileScan, filename);
+    if (args->v)
+        addLog(args->logFilePath, fileScan, filename);
     return 0;  
 }
 
@@ -450,13 +451,15 @@ void enableSigHandlers() {
 void sigUsr1Handler(int signo) {
     numDirs++;
     printf("New directory: %d/%d directories/files at this time \n", numDirs, numFiles);
-    addLog(args.logFilePath, sigReceive, "USR1");
+    if (args.v)
+        addLog(args.logFilePath, sigReceive, "USR1");
 }
 
 void sigUsr2Handler(int signo) {
     numFiles++;
     printf("New file: %d/%d directories/files at this time \n", numDirs, numFiles);
-    addLog(args.logFilePath, sigReceive, "USR2");
+    if (args.v)
+        addLog(args.logFilePath, sigReceive, "USR2");
 }
 
 void signalUSR1() {
