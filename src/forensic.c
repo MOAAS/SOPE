@@ -14,12 +14,6 @@
 
 #define MAXCHAR 1000
 
-static int numDirs = 0;
-static int numFiles = 0;
-static clock_t startTime = 0;
-
-// Parte 1
-
 typedef struct {
     bool r;
     bool h;
@@ -30,33 +24,73 @@ typedef struct {
     char* path;
     char* logFilePath;
     char* outFilePath;
+    char* command;
 } forensicArgs;
+
+static int numDirs = 0;
+static int numFiles = 0;
+static clock_t startTime = 0;
+static bool receivedSigInt = false;
+static pid_t originalPID;
+static forensicArgs args;
+
+// Parte 1
+
 
 void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
 
 // Parte 2
 
+typedef enum {
+    md5,
+    sha1,
+    sha256
+} fileSumType;
+
 int scanfile(char* filename, forensicArgs * args);
 char* getFileType(char* filename);
 char* getFileAccess(struct stat st);
-char* getCheckSum(char* filename, int type);
+char* getCheckSum(char* filename, fileSumType type);
 char* timestampToISO(time_t timestamp);
 
 // Parte 3, 4, 5
+
 
 int scanDir(char* dirname, forensicArgs * args);
 void waitForChildren();
 
 // Parte 6
 
-void addLog(char* logFilePath, char* act);
+typedef enum {
+    command,
+    sigReceive,
+    fileScan
+} logType;
+
+void addLog(char* logFilePath, logType type, char* act);
+
+// Parte 7
+
+void sigintHandler(int signo);
+void enableSigHandlers();
+
+// Parte 8 
+
+void sigUsr1Handler(int signo);
+void sigUsr2Handler(int signo);
+void signalUSR1();
+void signalUSR2();
+
+///////////////////////////
+
 
 int main(int argc, char* argv[], char* envp[]) {
     startTime = times(NULL);
-    forensicArgs args;
     processArgs(&args, argc, argv, envp);
+    enableSigHandlers();
+    originalPID = getpid();
     if (args.v)
-        addLog(args.logFilePath, "testest");
+        addLog(args.logFilePath, command, args.command);
     if (args.isDir)
         scanDir(args.path, &args);
     else scanfile(args.path, &args);
@@ -147,11 +181,20 @@ void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
         exit(9);
     }
     args->path = pathname;
+    // copy entire command to the struct too
+    args->command = malloc(MAXCHAR);
+    strcpy(args->command, argv[0]);
+    for (int i = 1; i < argc; i++) {
+        strcat(args->command, " ");
+        strcat(args->command, argv[i]);
+    }
 }
 
 // Parte 2 - Extrair  a  informação  solicitada  de  apenas  um  ficheiro  e  imprimi-la  na  saída  padrão de  acordo  com  os argumentos passados.
 //         - Efetuar  o  mesmo  procedimento  mas  agora,  implementando  a  operação  da  opção  '-o'  (escrita  no  ficheiro designado).
 int scanfile(char* filename, forensicArgs * args) {
+    if (args->o)
+        signalUSR2(); // Poe-se aqui??
     int saved_stdout = 0;
     // If -o is an option, redirect STDOUT to the specified file, saving STDOUT's file descriptor
     if (args->o) {
@@ -180,7 +223,6 @@ int scanfile(char* filename, forensicArgs * args) {
     char* modifyTime = timestampToISO(st.st_mtime);
     char fileInfo[1000];
     sprintf(fileInfo, "%s,%s,%ld,%s,%s,%s", filename, file_type, (long) st.st_size, file_access, changeTime, modifyTime);
-    //write(STDOUT_FILENO, fileInfo, strlen(fileInfo));
     free(file_type);
     free(file_access);
     free(changeTime);
@@ -189,20 +231,20 @@ int scanfile(char* filename, forensicArgs * args) {
     if (args->h) {
         char* checkSum;
         if (args->md5) {
-            checkSum = getCheckSum(filename, 0);
+            checkSum = getCheckSum(filename, md5);
             strcat(fileInfo, ",");
             free(checkSum);
         }
 
         if (args->sha1) {
-            checkSum = getCheckSum(filename, 1);
+            checkSum = getCheckSum(filename, sha1);
             strcat(fileInfo, ",");
             strcat(fileInfo, checkSum);
             free(checkSum);
         }
 
         if (args->sha256) {
-            checkSum = getCheckSum(filename, 2);
+            checkSum = getCheckSum(filename, sha256);
             strcat(fileInfo, ",");
             strcat(fileInfo, checkSum);
             free(checkSum);
@@ -216,6 +258,7 @@ int scanfile(char* filename, forensicArgs * args) {
         dup2(saved_stdout, STDOUT_FILENO);
         close(saved_stdout);
     }
+    addLog(args->logFilePath, fileScan, filename);
     return 0;  
 }
 
@@ -271,20 +314,24 @@ char* getFileAccess(struct stat st) {
     
 }
 
-char* getCheckSum(char* filename, int type) {
+char* getCheckSum(char* filename, fileSumType type) {
     char* str = malloc(MAXCHAR);
     FILE* fp;
     char command[MAXCHAR];    
     // Creates and calls md5sum/sha1sum/sha256sum command to get sum
-    if (type == 0)
-        sprintf(command, "md5sum %s", filename);
-    else if (type == 1)
-        sprintf(command, "sha1sum %s", filename);
-    else if (type == 2)
-        sprintf(command, "sha256sum %s", filename);
-    else {
-        printf("%d: Unknown sum type.\n", type);
-        return NULL;
+    switch (type) {
+        case md5:
+            sprintf(command, "md5sum %s", filename);
+            break;
+        case sha1:
+            sprintf(command, "sha1sum %s", filename);
+            break;
+        case sha256:
+            sprintf(command, "sha256sum %s", filename);
+            break;
+        default:
+            printf("%d: Unknown sum type.\n", type);
+            return NULL;
     }
     if ((fp = popen(command, "r")) == NULL) {
         printf("%s: command failed", command);
@@ -312,9 +359,11 @@ char* timestampToISO(time_t timestamp) {
 // Parte 3/4/5 - Repetir o passo anterior para todos os ficheiros de um diretório, funcionalidade recursiva.
 
 int scanDir(char * dirname, forensicArgs * args) {
+    if (args->o)
+        signalUSR1(); // Poe-se aqui??
     DIR *dir = opendir(dirname);
     struct dirent *ent;
-    while ((ent = readdir(dir)) != NULL) {
+    while ((ent = readdir(dir)) != NULL && !receivedSigInt) {
         if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
             continue;
         if (ent->d_type == DT_REG) {
@@ -344,20 +393,76 @@ int scanDir(char * dirname, forensicArgs * args) {
 void waitForChildren() {
     pid_t wait_ret;
     do {
-        // wait ret is the ret value of wait (ret meaning return)
         wait_ret = wait(NULL);
     } while (errno != ECHILD && wait_ret != -1);
 }
 
 // Parte 6 - Adicionar as funcionalidades de registo (log).
 
-void addLog(char* logFilePath, char* act) {
-    FILE* logFile = fopen(logFilePath, "w");
+void addLog(char* logFilePath, logType type, char* act) {
+    FILE* logFile = fopen(logFilePath, "a");
     if (logFile == NULL)
         return;
     char logLine[MAXCHAR];
     clock_t now = times(NULL);
-    sprintf(logLine, "%f - %08d - %s", (double)(now - startTime)/sysconf(_SC_CLK_TCK) * 1000, getpid(), act);
+    switch (type) {
+        case command:
+            sprintf(logLine, "%f - %08d - %s %s\n",  (double)(now - startTime)/sysconf(_SC_CLK_TCK) * 1000, getpid(), "COMMAND", act);
+            break;
+        case sigReceive:
+            sprintf(logLine, "%f - %08d - %s %s\n", (double)(now - startTime)/sysconf(_SC_CLK_TCK) * 1000, getpid(), "SIGNAL", act);
+            break;
+        case fileScan:
+            sprintf(logLine, "%f - %08d - %s %s\n", (double)(now - startTime)/sysconf(_SC_CLK_TCK) * 1000, getpid(), "ANALYZED", act);
+            break;
+
+    }
     fwrite(logLine, sizeof(char), strlen(logLine), logFile);
     fclose(logFile);
+}
+
+// Parte 7 - Adicionar a funcionalidade de tratamento do sinal associado ao CTRL+C.
+
+void sigintHandler(int signo) {
+    receivedSigInt = true;
+}
+
+void enableSigHandlers() {
+    struct sigaction sa;
+    sa.sa_handler = sigintHandler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, NULL);
+
+    sa.sa_handler = sigUsr1Handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGUSR1, &sa, NULL);
+
+    sa.sa_handler = sigUsr2Handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGUSR2, &sa, NULL);    
+}
+
+// Parte 8 - Adicionar a funcionalidade de emissão e tratamento dos sinais SIGUSR1 e SIGUSR2.
+
+void sigUsr1Handler(int signo) {
+    numDirs++;
+    printf("New directory: %d/%d directories/files at this time \n", numDirs, numFiles);
+    addLog(args.logFilePath, sigReceive, "USR1");
+}
+
+void sigUsr2Handler(int signo) {
+    numFiles++;
+    printf("New file: %d/%d directories/files at this time \n", numDirs, numFiles);
+    addLog(args.logFilePath, sigReceive, "USR2");
+}
+
+void signalUSR1() {
+    kill(originalPID, SIGUSR1);    
+}
+
+void signalUSR2() {
+    kill(originalPID, SIGUSR2);    
 }
