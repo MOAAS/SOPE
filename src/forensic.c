@@ -233,6 +233,7 @@ int scanfile(char* filename, forensicArgs * args) {
         if (args->md5) {
             checkSum = getCheckSum(filename, md5);
             strcat(fileInfo, ",");
+            strcat(fileInfo, checkSum);
             free(checkSum);
         }
 
@@ -378,11 +379,11 @@ int scanDir(char * dirname, forensicArgs * args) {
                 printf("Error creating child process\n");
                 exit(1);
             } else if (pid == 0) {
-                continue;
-            } else {
                 char * newDir = (char *) malloc(MAXCHAR);
                 sprintf(newDir, "%s/%s", dirname, ent->d_name);
                 return scanDir(newDir, args);
+            } else {
+                continue;
             }
         }
     }
