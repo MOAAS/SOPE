@@ -378,13 +378,13 @@ int scanDir(char * dirname, forensicArgs * args) {
             if (pid < 0) {
                 printf("Error creating child process\n");
                 exit(1);
-            } else if (pid == 0) {
+            } 
+            else if (pid == 0) {
                 char * newDir = (char *) malloc(MAXCHAR);
                 sprintf(newDir, "%s/%s", dirname, ent->d_name);
                 return scanDir(newDir, args);
-            } else {
-                continue;
-            }
+            } 
+            else continue;
         }
     }
     closedir(dir);
