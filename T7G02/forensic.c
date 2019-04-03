@@ -37,7 +37,7 @@ static forensicArgs args;
 // Parte 1
 
 
-void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]);
+void processArgs(forensicArgs * args, int argc, char* argv[]);
 
 // Parte 2
 
@@ -71,22 +71,22 @@ void addLog(char* logFilePath, logType type, char* act);
 
 // Parte 7
 
-void sigintHandler(int signo);
+void sigintHandler();
 void enableSigHandlers();
 
 // Parte 8 
 
-void sigUsr1Handler(int signo);
-void sigUsr2Handler(int signo);
+void sigUsr1Handler();
+void sigUsr2Handler();
 void signalUSR1();
 void signalUSR2();
 
 ///////////////////////////
 
 
-int main(int argc, char* argv[], char* envp[]) {
+int main(int argc, char* argv[]) {
     startTime = times(NULL);
-    processArgs(&args, argc, argv, envp);
+    processArgs(&args, argc, argv);
     enableSigHandlers();
     originalPID = getpid();
     if (args.v)
@@ -97,7 +97,7 @@ int main(int argc, char* argv[], char* envp[]) {
 }
 
 // Parte 1 - Receber, tratar e guardar os argumentos e variáveis de ambiente.
-void processArgs(forensicArgs * args, int argc, char* argv[], char* envp[]) {
+void processArgs(forensicArgs * args, int argc, char* argv[]) {
     args->r = false;
     args->h = false;
     args->md5 = false;
@@ -378,13 +378,13 @@ int scanDir(char * dirname, forensicArgs * args) {
             if (pid < 0) {
                 printf("Error creating child process\n");
                 exit(1);
-            } 
-            else if (pid == 0) {
+            } else if (pid == 0) {
                 char * newDir = (char *) malloc(MAXCHAR);
                 sprintf(newDir, "%s/%s", dirname, ent->d_name);
                 return scanDir(newDir, args);
-            } 
-            else continue;
+            } else {
+                continue;
+            }
         }
     }
     closedir(dir);
@@ -425,7 +425,7 @@ void addLog(char* logFilePath, logType type, char* act) {
 
 // Parte 7 - Adicionar a funcionalidade de tratamento do sinal associado ao CTRL+C.
 
-void sigintHandler(int signo) {
+void sigintHandler() {
     receivedSigInt = true;
 }
 
@@ -449,14 +449,14 @@ void enableSigHandlers() {
 
 // Parte 8 - Adicionar a funcionalidade de emissão e tratamento dos sinais SIGUSR1 e SIGUSR2.
 
-void sigUsr1Handler(int signo) {
+void sigUsr1Handler() {
     numDirs++;
     printf("New directory: %d/%d directories/files at this time \n", numDirs, numFiles);
     if (args.v)
         addLog(args.logFilePath, sigReceive, "USR1");
 }
 
-void sigUsr2Handler(int signo) {
+void sigUsr2Handler() {
     numFiles++;
     printf("New file: %d/%d directories/files at this time \n", numDirs, numFiles);
     if (args.v)
