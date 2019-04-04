@@ -269,7 +269,7 @@ char* getFileType(char* filename) {
     FILE* fp;
     char command[MAXCHAR];
     // Calls file command to get file type
-    sprintf(command, "file %s", filename);
+    sprintf(command, "file \"%s\"", filename);
     if ((fp = popen(command,"r")) == NULL) {
         printf("%s: command failed", command);
         return NULL;
@@ -323,13 +323,13 @@ char* getCheckSum(char* filename, fileSumType type) {
     // Creates and calls md5sum/sha1sum/sha256sum command to get sum
     switch (type) {
         case md5:
-            sprintf(command, "md5sum %s", filename);
+            sprintf(command, "md5sum \"%s\"", filename);
             break;
         case sha1:
-            sprintf(command, "sha1sum %s", filename);
+            sprintf(command, "sha1sum \"%s\"", filename);
             break;
         case sha256:
-            sprintf(command, "sha256sum %s", filename);
+            sprintf(command, "sha256sum \"%s\"", filename);
             break;
         default:
             printf("%d: Unknown sum type.\n", type);
