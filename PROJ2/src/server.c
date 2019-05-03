@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "../constants.h"
+#include "constants.h"
 #include <math.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -44,7 +44,8 @@ int main(int agrc, char* argv[])
     }
     else
     {
-        
+        printf("INVALID ARGUMENTS!\n");
+        exit(1);
     }
     
     printf("SERVER!\n");
