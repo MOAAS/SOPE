@@ -58,3 +58,5 @@ Mkfile.old
 dkms.conf
 src/forensic
 boapasta/*
+
+PROJ2/\.DS_Store
