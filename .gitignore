@@ -1,6 +1,12 @@
 # Prerequisites
 *.d
 
+# MacOS
+.DS_tore
+
+# VScode
+*.vscode
+
 # Object files
 *.o
 *.ko
