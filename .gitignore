@@ -2,7 +2,7 @@
 *.d
 
 # MacOS
-.DS_tore
+*.DS_store
 
 # VScode
 *.vscode
@@ -58,7 +58,3 @@ Mkfile.old
 dkms.conf
 src/forensic
 boapasta/*
-
-PROJ2/\.DS_Store
-
-PROJ2/src/\.DS_Store
