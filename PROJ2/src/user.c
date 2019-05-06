@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "types.h"
 #include "sope.h"
 #include "constants.h"
@@ -21,6 +24,8 @@ req_create_account_t makeCreateAccReq(char* args);
 req_transfer_t makeTransferReq(char* args);
 UserArgs processArgs(char* argv[]);
 
+char* makeUserFifo();
+
 int main(int argc, char * argv[]) {
 
     if (argc != 6) {
@@ -31,6 +36,16 @@ int main(int argc, char * argv[]) {
     UserArgs args = processArgs(argv);
     tlv_request_t request = createRequest(args);
 
+    // Falta verificar se pedido e valido... :D
+    char* userFifoPath = makeUserFifo();
+    char* serverFifoPath = SERVER_FIFO_PATH;
+
+    // Enviar...
+
+   // int serverFifoFD = open(serverFifoPath, O_WRONLY);
+
+   // RECEBER!
+    //int userFifoFD = open(userFifoPath, O_RDONLY);
 
     printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
     printf("Type = %d | Length = %d \n", request.type, request.length);
@@ -39,6 +54,17 @@ int main(int argc, char * argv[]) {
     if (args.opcode == OP_TRANSFER)
         printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
 
+}
+
+char* makeUserFifo() {
+    char* userFifoPath = malloc(USER_FIFO_PATH_LEN + 1);
+    char userPID[WIDTH_ID + 1];
+    sprintf(userPID, "%05d", getpid());
+    strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
+    strcat(userFifoPath, userPID);
+    mkfifo(userFifoPath, 0777);
+    printf("%s ", userFifoPath);
+    return userFifoPath;
 }
 
 UserArgs processArgs(char* argv[]) {
@@ -52,7 +78,7 @@ UserArgs processArgs(char* argv[]) {
 }
 
 tlv_request_t createRequest(UserArgs args) {
-    if (args.opcode >= __OP_MAX_NUMBER) {
+    if (args.opcode < 0 || args.opcode >= __OP_MAX_NUMBER) {
         printf("Unknown optype: %d\n", args.opcode);
     }
     req_header_t header = makeReqHeader(args);

@@ -13,17 +13,15 @@ void* BankOffice() { return NULL; }
 
 pthread_t* CreateBankOffices(int numberOfThreads)
 {
-    if(numberOfThreads > MAX_BANK_OFFICES) numberOfThreads = MAX_BANK_OFFICES;
+    numberOfThreads = min(numberOfThreads, MAX_BANK_OFFICES);
+    numberOfThreads = max(numberOfThreads, 1);
     pthread_t* officeTids = (pthread_t*) malloc(numberOfThreads * sizeof(pthread_t));
-    for(unsigned int i = 0; i < numberOfThreads; i++)
-    {
+    for(unsigned int i = 0; i < numberOfThreads; i++) {
         pthread_t tid;
-        int err = pthread_create(&tid, NULL, &BankOffice, NULL);
-        if(err != 0)
-        {
+        if(pthread_create(&tid, NULL, &BankOffice, NULL) != 0) {
             perror("Thread Creation error in BankOffices: ");
+            exit(1);
         }
-
         officeTids[i] = tid;
     }
     return officeTids;
@@ -34,9 +32,9 @@ void CreateUser(int id, char* password)
 
 }
 
-int main(int agrc, char* argv[])
+int main(int argc, char* argv[])
 {
-    if(agrc == 3)
+    if(argc == 3)
     {
         int numberOfOffices = atoi(argv[1]);
         CreateBankOffices(numberOfOffices);
