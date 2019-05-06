@@ -5,47 +5,39 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "types.h"
+#include <signal.h>
+
+#include "fifoMaker.h"
+#include "argProcessing.h"
 #include "sope.h"
-#include "constants.h"
-
-
-typedef struct {
-    int id;
-    char* password;
-    int delayMS;
-    int opcode;
-    char* args;
-} UserArgs;
 
 tlv_request_t createRequest(UserArgs args);
 req_header_t makeReqHeader(UserArgs args);
 req_create_account_t makeCreateAccReq(char* args);
 req_transfer_t makeTransferReq(char* args);
-UserArgs processArgs(char* argv[]);
 
-char* makeUserFifo();
+void sendRequest(tlv_request_t request, char* serverFifoPath);
+tlv_reply_t awaitReply(char* userFifoPath);
+
+void sigAlarmHandler();
+void enableTimeoutAlarm();
 
 int main(int argc, char * argv[]) {
-
-    if (argc != 6) {
-        printf("Usage: ./user <ID> \"<Password>\" <Delay> <OPcode> \"<Args>\"");
-        exit(1);
-    }
-
-    UserArgs args = processArgs(argv);
+    UserArgs args = processUserArgs(argc, argv);
     tlv_request_t request = createRequest(args);
-
-    // Falta verificar se pedido e valido... :D
+    
     char* userFifoPath = makeUserFifo();
     char* serverFifoPath = SERVER_FIFO_PATH;
 
-    // Enviar...
+    sendRequest(request, serverFifoPath);
 
-   // int serverFifoFD = open(serverFifoPath, O_WRONLY);
+    enableTimeoutAlarm();
 
-   // RECEBER!
-    //int userFifoFD = open(userFifoPath, O_RDONLY);
+    tlv_reply_t reply = awaitReply(userFifoPath);
+
+    deleteUserFifo();
+
+    // Debug :D
 
     printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
     printf("Type = %d | Length = %d \n", request.type, request.length);
@@ -56,25 +48,59 @@ int main(int argc, char * argv[]) {
 
 }
 
-char* makeUserFifo() {
-    char* userFifoPath = malloc(USER_FIFO_PATH_LEN + 1);
-    char userPID[WIDTH_ID + 1];
-    sprintf(userPID, "%05d", getpid());
-    strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
-    strcat(userFifoPath, userPID);
-    mkfifo(userFifoPath, 0777);
-    printf("%s ", userFifoPath);
-    return userFifoPath;
+void sigAlarmHandler() {
+    deleteUserFifo();
+    exit(0);
 }
 
-UserArgs processArgs(char* argv[]) {
-    UserArgs args;
-    args.id = atoi(argv[1]);
-    args.password = argv[2];
-    args.delayMS = atoi(argv[3]);
-    args.opcode = atoi(argv[4]);
-    args.args = argv[5];
-    return args;
+void enableTimeoutAlarm() {
+    struct sigaction sa;
+    sa.sa_handler = sigAlarmHandler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGALRM, &sa, NULL);
+    alarm(FIFO_TIMEOUT_SECS);
+}
+
+void sendRequest(tlv_request_t request, char* serverFifoPath) {
+    int serverFifoFD = open(serverFifoPath, O_WRONLY | O_NONBLOCK);
+    if (serverFifoFD == -1) {
+        perror("Opening Server Fifo");
+        exit(1);
+    }
+    if (write(serverFifoFD, &request, sizeof(request)) == -1) {
+        perror("Sending request");
+        exit(1);
+    }
+    close(serverFifoFD);
+}
+
+tlv_reply_t awaitReply(char* userFifoPath) {
+    int userFifoFD = open(userFifoPath, O_RDONLY | O_NONBLOCK);
+    if (userFifoFD == -1) {
+        perror("Opening User Fifo");
+        exit(1);
+    }
+
+    tlv_reply_t reply;
+
+    if (read(userFifoFD, &reply.type, sizeof(op_type_t)) == -1) {
+        perror("Reading reply type");
+        exit(1);
+    }
+
+    if(read(userFifoFD, &reply.length, sizeof(uint32_t)) == -1) {
+        perror("Reading reply length");
+        exit(1);
+    }
+    
+    if (read(userFifoFD, &reply.value, reply.length) == -1) {
+        perror("Reading reply value");
+        exit(1);
+    }
+    alarm(0);
+    close(userFifoFD);
+    return reply;
 }
 
 tlv_request_t createRequest(UserArgs args) {
