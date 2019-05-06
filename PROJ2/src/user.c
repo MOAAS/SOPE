@@ -21,11 +21,6 @@ req_create_account_t makeCreateAccReq(char* args);
 req_transfer_t makeTransferReq(char* args);
 UserArgs processArgs(char* argv[]);
 
-bool hasOuterQuotes(char* string);
-char* removeOuterQuotes(char* string);
-
-
-
 int main(int argc, char * argv[]) {
 
     if (argc != 6) {
