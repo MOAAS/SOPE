@@ -108,39 +108,49 @@ req_header_t makeReqHeader(UserArgs args) {
 }
 
 req_create_account_t makeCreateAccReq(char* args) {
-    if (strlen(args) < WIDTH_ACCOUNT + WIDTH_BALANCE + 2) {
-        printf("Error making create account request: %s\n", args);
+    char* accId = strtok(args, " ");
+    char* balance = strtok(NULL, " ");
+    char* password = strtok(NULL, " ");
+    if (accId == NULL || balance == NULL || password == NULL) {
+        printf("Invalid create argument format: %s\n", args);
         exit(1);
     }
-    char accId[WIDTH_ACCOUNT + 1] = "\0";
-    char balance[WIDTH_BALANCE + 1] = "\0";
-    char password[MAX_PASSWORD_LEN + 1] = "\0";
-    strncpy(accId, args, WIDTH_ACCOUNT);
-    args = args + WIDTH_ACCOUNT + 1;
-    strncpy(balance, args, WIDTH_BALANCE);
-    args = args + WIDTH_BALANCE + 1;
-    strncpy(password, args, strlen(args));
-
     req_create_account_t createAcc;
     createAcc.account_id = atoi(accId);
     createAcc.balance = atoi(balance);
     strcpy(createAcc.password, password);
+    if (createAcc.account_id <= 0 || createAcc.account_id > MAX_BANK_ACCOUNTS) {
+        printf("Invalid account ID. Args: %s\n", args);
+        exit(1);
+    }
+    if (createAcc.balance <= 0 || createAcc.balance > MAX_BALANCE) {
+        printf("Invalid balance. Args: %s\n", args);
+        exit(1);
+    }
+    if (strlen(createAcc.password) < MIN_PASSWORD_LEN || strlen(createAcc.password) > MAX_PASSWORD_LEN) {
+        printf("Invalid password: %s. Note that password size must have between %d and %d characters, and no spaces.\n", password, MIN_PASSWORD_LEN, MAX_PASSWORD_LEN);
+        exit(1);
+    }
     return createAcc;
 }
 
 req_transfer_t makeTransferReq(char* args) {
-    if (strlen(args) != WIDTH_ACCOUNT + WIDTH_BALANCE + 1) {
-        printf("Error making create transfer request: %s\n", args);
+    char* accId = strtok(args, " ");
+    char* amount = strtok(NULL, " ");
+    if (amount == NULL || accId == NULL) {
+        printf("Invalid transfer request argument format: %s\n", args);
         exit(1);
     }
-    char accId[WIDTH_ACCOUNT + 1] = "\0";
-    char amount[WIDTH_BALANCE + 1] = "\0";
-    strncpy(accId, args, WIDTH_ACCOUNT);
-    args = args + WIDTH_ACCOUNT + 1;
-    strncpy(amount, args, WIDTH_BALANCE);
-
     req_transfer_t transfer;
     transfer.account_id = atoi(accId);
     transfer.amount = atoi(amount);
+    if (transfer.account_id <= 0 || transfer.account_id > MAX_BANK_ACCOUNTS) {
+        printf("Invalid account ID. Args: %s\n", args);
+        exit(1);
+    }
+    if (transfer.amount <= 0 || transfer.amount > MAX_BALANCE) {
+        printf("Invalid amount. Args: %s\n", args);
+        exit(1);
+    }
     return transfer;
 }
