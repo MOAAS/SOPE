@@ -1,4 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "bankoffice.h"
+#include "requestsQueue.h"
+#include "accounts.h"
 
 static pthread_t* officeTids;
 static int* threadNums;
@@ -6,15 +11,65 @@ static int numberOfOffices = 0;
 
 static bool* usedOffices; // partilhadooooooooo
 static pthread_mutex_t mootex = PTHREAD_MUTEX_INITIALIZER; // test :D
+static RequestsQueue* requestsQueue;
+
+bool validateAccount(tlv_request_t request, char* userFifoPath)
+{
+    uint32_t account_id = request.value.header.account_id;
+
+    bank_account_t* account;
+    if((account = getAccount(account_id)) == NULL)
+    {
+        //sendReply(,userFifoPath);
+        return false;
+    }
+
+    char* hash = generateHash(request.value.header.password, account->salt);
+    if(hash != account->hash)
+    {
+        //sendReply(,userFifoPath);
+        return false;
+    }
+
+    return true;
+}
+
+void manageRequest(tlv_request_t request)
+{
+    char pidStr[WIDTH_ID];
+    sprintf(pidStr, "%d", request.value.header.pid);
+    char* userFIFOpath = (char*) malloc(USER_FIFO_PATH_LEN);
+    userFIFOpath = strcat(USER_FIFO_PATH_PREFIX, pidStr);
+
+    if(!validateAccount(request, userFIFOpath)) return;
+
+    switch(request.type)
+    {
+        case OP_CREATE_ACCOUNT:
+            break;
+        case OP_BALANCE:
+            break;
+        case OP_TRANSFER:
+            break;
+        case OP_SHUTDOWN:
+            break;
+        case __OP_MAX_NUMBER:
+            break;
+    }
+}
 
 void* runBankOffice(void* officeNum) {
     int num = *(int*)officeNum;
     usedOffices[num - 1] = true;
 
+    while(true)
+    {
+        tlv_request_t* request = getFront(requestsQueue);
+        if(request == NULL) continue;
 
-    // Fila de pedidos.. 
-    // Acede as contas.. 
-    // Repete .. 
+        popFront(requestsQueue);
+        manageRequest(*request);
+    }
 
     usedOffices[num - 1] = false;
     return NULL; 
@@ -27,6 +82,7 @@ void createBankOffices(int numOffices) {
     officeTids = malloc(numOffices * sizeof(pthread_t));
     threadNums = malloc(numOffices * sizeof(int));
     usedOffices = malloc(numOffices * sizeof(bool));
+    requestsQueue = createRequestsQueue();
     for(int i = 0; i < numOffices; i++) {
         pthread_t tid;
         threadNums[i] = i + 1;
@@ -37,8 +93,6 @@ void createBankOffices(int numOffices) {
         logBankOfficeOpen(getSLogFD(), threadNums[i], tid);
         officeTids[i] = tid;
     }
-
-
 }
 
 void destroyBankOffices() {
@@ -51,7 +105,7 @@ void destroyBankOffices() {
 }
 
 void addRequestToQueue(tlv_request_t request) {
-    
+    push(requestsQueue, request);
 
     // DEBUG
     printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);

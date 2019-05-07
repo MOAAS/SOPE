@@ -5,7 +5,7 @@
 typedef struct Node
 {
     tlv_request_t request;
-    Node* nextNode;
+    struct Node* nextNode;
 }Node;
 
 typedef struct RequestsQueue
