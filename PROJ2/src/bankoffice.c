@@ -13,25 +13,50 @@ static bool* usedOffices; // partilhadooooooooo
 static pthread_mutex_t mootex = PTHREAD_MUTEX_INITIALIZER; // test :D
 static RequestsQueue* requestsQueue;
 
-bool validateAccount(tlv_request_t request, char* userFifoPath)
+bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* account)
 {
     uint32_t account_id = request.value.header.account_id;
 
-    bank_account_t* account;
     if((account = getAccount(account_id)) == NULL)
     {
-        //sendReply(,userFifoPath);
+        //sendReply(,userFifoPath); //UNKNOWN ACCOUNT ERROR
         return false;
     }
 
     char* hash = generateHash(request.value.header.password, account->salt);
     if(hash != account->hash)
     {
-        //sendReply(,userFifoPath);
+        //sendReply(,userFifoPath); //INCORRECT PASSWORD ERROR
         return false;
     }
 
     return true;
+}
+
+void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
+{
+    if(account->account_id != ADMIN_ACCOUNT_ID)
+    {
+        //sendReply(,userFifoPath); //NOT ADMIN ERROR
+        return;
+    }
+
+    uint32_t id = request.value.create.account_id; 
+    if(getAccount(id) != NULL)
+    {
+        //sendReply(,userFifoPath); //ACCOUNT ALREADY IN USE
+        return;
+    }
+
+    uint32_t balance = request.value.create.balance;
+    char* password = request.value.create.password;
+    createAccount(id, balance, password);
+    //sendReply(,userFifoPath); //ACCOUNT CREATED
+}
+
+void handleBalanceRequest(tlv_request_t request, bank_account_t* account)
+{
+
 }
 
 void manageRequest(tlv_request_t request)
@@ -41,11 +66,13 @@ void manageRequest(tlv_request_t request)
     char* userFIFOpath = (char*) malloc(USER_FIFO_PATH_LEN);
     userFIFOpath = strcat(USER_FIFO_PATH_PREFIX, pidStr);
 
-    if(!validateAccount(request, userFIFOpath)) return;
+    bank_account_t* account;
+    if(!validateAccount(request, userFIFOpath, account)) return;
 
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
+            handleCreateAccountRequest(request, account);
             break;
         case OP_BALANCE:
             break;
