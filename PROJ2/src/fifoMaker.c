@@ -3,11 +3,7 @@
 static char* userFifoPath = NULL;
 
 char* makeUserFifo() {
-    userFifoPath = malloc(USER_FIFO_PATH_LEN + 1);
-    char userPID[WIDTH_ID + 1];
-    sprintf(userPID, "%05d", getpid());
-    strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
-    strcat(userFifoPath, userPID);
+    userFifoPath = getUserFifoPath(getpid());
     if (mkfifo(userFifoPath, 0777) == -1) {
         perror("User fifo creation");
         exit(1);
@@ -38,4 +34,13 @@ int openServerFifo(int mode) {
         exit(1);
     }
     return serverFifoFD;
+}
+
+char* getUserFifoPath(int pid) {
+    char* userFifoPath = malloc(USER_FIFO_PATH_LEN + 1);
+    char userPID[WIDTH_ID + 1];
+    sprintf(userPID, "%05d", getpid());
+    strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
+    strcat(userFifoPath, userPID);
+    return userFifoPath;
 }

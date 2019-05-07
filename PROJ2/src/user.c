@@ -66,6 +66,10 @@ void enableTimeoutAlarm() {
     alarm(FIFO_TIMEOUT_SECS);
 }
 
+void disableTimeoutAlarm() {
+    alarm(0);
+}
+
 void sendRequest(tlv_request_t request, char* serverFifoPath) {
     logRequest(getULogFD(), getpid(), &request);
     int serverFifoFD = open(serverFifoPath, O_WRONLY | O_NONBLOCK);
@@ -104,7 +108,7 @@ tlv_reply_t awaitReply(char* userFifoPath) {
         exit(1);
     }
         
-    alarm(0);
+    disableTimeoutAlarm();
     close(userFifoFD);
     logReply(getULogFD(), getpid(), &reply);
     return reply;

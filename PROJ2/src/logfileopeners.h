@@ -13,8 +13,6 @@ void openULog();
 
 int getSLogFD();
 int getULogFD();
-int getNewSlogFD();
-int getNewUlogFD();
 
 void logEmptyReply(int fd, int id, int retCode, tlv_request_t request);
 

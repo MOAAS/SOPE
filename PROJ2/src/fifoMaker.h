@@ -14,3 +14,5 @@ void deleteUserFifo();
 
 void makeServerFifo();
 int openServerFifo(int mode);
+
+char* getUserFifoPath(int pid);

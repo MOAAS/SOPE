@@ -23,7 +23,8 @@ int main(int argc, char* argv[]) {
     openSLog();
 
     clearAccounts();
-    createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword);    
+    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword);
+    logAccountCreation(getSLogFD(), 0, &admin_acc);
     createBankOffices(args.numOffices);    
 
     makeServerFifo();
@@ -57,7 +58,7 @@ void readRequests(int serverFifoFD, int serverFifoFDW) {
             break;
 
         // debug :D nao tirar pa nao encravare
-        close(serverFifoFDW);
+        //close(serverFifoFDW);
 
         addRequestToQueue(request);
     }

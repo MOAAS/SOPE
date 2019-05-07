@@ -6,6 +6,7 @@
 
 #include "logfileopeners.h"
 #include "queue.h"
+#include "fifomaker.h"
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b)) 

@@ -144,7 +144,11 @@ int logSyncDelay(int fd, int id, int sid, uint32_t delay_ms) {
  * Ancillary functions
  */
 
+static pthread_mutex_t mootex = PTHREAD_MUTEX_INITIALIZER;
+
 static int atomicPrintf(int fd, const char *format, ...) {
+  pthread_mutex_lock(&mootex);
+
   static char buffer[PIPE_BUF];
   va_list args;
   int ret;
@@ -155,6 +159,7 @@ static int atomicPrintf(int fd, const char *format, ...) {
 
   write(fd, buffer, strlen(buffer));
 
+  pthread_mutex_unlock(&mootex);
   return ret;
 }
 

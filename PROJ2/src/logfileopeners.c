@@ -38,22 +38,3 @@ int getSLogFD() {
 int getULogFD() {
     return ulogFD;
 }
-
-int getNewSlogFD() {
-    int fd = open("slog.txt", O_WRONLY | O_CREAT | O_APPEND);
-    if (fd == -1) {
-        perror("Error opening server log file");
-        exit(1);
-    }
-    return fd;
-}
-
-int getNewUlogFD() {
-    int fd = open("ulog.txt", O_WRONLY | O_CREAT | O_APPEND);
-    if (fd == -1) {
-        perror("Error opening user log file");
-        exit(1);
-    }
-    return fd;
-}
-
