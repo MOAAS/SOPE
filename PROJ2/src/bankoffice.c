@@ -51,6 +51,8 @@ void destroyBankOffices() {
 }
 
 void addRequestToQueue(tlv_request_t request) {
+    
+
     // DEBUG
     printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
     printf("Type = %d | Length = %d \n", request.type, request.length);
