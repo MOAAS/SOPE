@@ -1,4 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "bankoffice.h"
+#include "requestsQueue.h"
+#include "accounts.h"
 
 static const int BUFFER_SIZE = 5000;
 
@@ -13,18 +18,86 @@ static RequestQueue* queue;
 static sem_t queueEmptySem;
 static sem_t queueFullSem;
 
+bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* account)
+{
+    uint32_t account_id = request.value.header.account_id;
+
+    if((account = getAccount(account_id)) == NULL)
+    {
+        //sendReply(,userFifoPath); //UNKNOWN ACCOUNT ERROR
+        return false;
+    }
+
+    char* hash = generateHash(request.value.header.password, account->salt);
+    if(hash != account->hash)
+    {
+        //sendReply(,userFifoPath); //INCORRECT PASSWORD ERROR
+        return false;
+    }
+
+    return true;
+}
+
+void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
+{
+    if(account->account_id != ADMIN_ACCOUNT_ID)
+    {
+        //sendReply(,userFifoPath); //NOT ADMIN ERROR
+        return;
+    }
+
+    uint32_t id = request.value.create.account_id; 
+    if(getAccount(id) != NULL)
+    {
+        //sendReply(,userFifoPath); //ACCOUNT ALREADY IN USE
+        return;
+    }
+
+    uint32_t balance = request.value.create.balance;
+    char* password = request.value.create.password;
+    createAccount(id, balance, password);
+    //sendReply(,userFifoPath); //ACCOUNT CREATED
+}
+
+void handleBalanceRequest(tlv_request_t request, bank_account_t* account)
+{
+
+}
+
+void manageRequest(tlv_request_t request)
+{
+    char pidStr[WIDTH_ID];
+    sprintf(pidStr, "%d", request.value.header.pid);
+    char* userFIFOpath = (char*) malloc(USER_FIFO_PATH_LEN);
+    userFIFOpath = strcat(USER_FIFO_PATH_PREFIX, pidStr);
+
+    bank_account_t* account;
+    if(!validateAccount(request, userFIFOpath, account)) return;
+
+    switch(request.type)
+    {
+        case OP_CREATE_ACCOUNT:
+            handleCreateAccountRequest(request, account);
+            break;
+        case OP_BALANCE:
+            break;
+        case OP_TRANSFER:
+            break;
+        case OP_SHUTDOWN:
+            break;
+        case __OP_MAX_NUMBER:
+            break;
+    }
+}
+
 void* runBankOffice(void* officeNum) {
     int num = *(int*)officeNum;
     usedOffices[num - 1] = true;
 
-
-    for (int i = 0; i < 3; i++) {
-        printf("GOT REQUEST: %d\n", num);
-        getRequestFromQueue(num);
+    while(true) {
+        tlv_request_t request = getRequestFromQueue(num);
+        manageRequest(request);
     }
-    // Fila de pedidos.. 
-    // Acede as contas.. 
-    // Repete .. 
 
     usedOffices[num - 1] = false;
     return NULL; 

@@ -3,6 +3,11 @@
 static bank_account_t accounts[MAX_BANK_ACCOUNTS];
 static bool usedAccounts[MAX_BANK_ACCOUNTS];
 
+bank_account_t* getAccount(uint32_t account_id)
+{
+    if(!usedAccounts[account_id]) return NULL;
+    else return &accounts[account_id];
+}
 
 void clearAccounts() {
     for (int i = 0; i < MAX_BANK_ACCOUNTS; i++) {
