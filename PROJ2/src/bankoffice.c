@@ -66,13 +66,15 @@ void handleBalanceRequest(tlv_request_t request, bank_account_t* account)
 
 void manageRequest(tlv_request_t request)
 {
-    char pidStr[WIDTH_ID];
-    sprintf(pidStr, "%d", request.value.header.pid);
-    char* userFIFOpath = (char*) malloc(USER_FIFO_PATH_LEN);
-    userFIFOpath = strcat(USER_FIFO_PATH_PREFIX, pidStr);
+
+    char userFifoPath[USER_FIFO_PATH_LEN + 1];
+    char userPID[WIDTH_ID + 1];
+    sprintf(userPID, "%05d", getpid());
+    strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
+    strcat(userFifoPath, userPID);
 
     bank_account_t* account;
-    if(!validateAccount(request, userFIFOpath, account)) return;
+    if(!validateAccount(request, userFifoPath, account)) return;
 
     switch(request.type)
     {
