@@ -1,5 +1,18 @@
 #pragma once
 
+#define OK              0
+#define SRV_DOWN        1
+#define SRV_TIMEOUT     2
+#define USR_DOWN        3
+#define LOGIN_FAIL      4
+#define OP_NALLOW       5  
+#define ID_IN_USE       6
+#define ID_NOT_FOUND    7
+#define SAME_ID         8
+#define NO_FUNDS        9
+#define TOO_HIGH        10
+#define OTHER           11
+
 #define MAX_BANK_OFFICES 99
 #define MAX_BANK_ACCOUNTS 4096
 #define MIN_BALANCE 1UL
