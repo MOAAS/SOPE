@@ -36,21 +36,18 @@ int main(int argc, char * argv[]) {
     char* serverFifoPath = SERVER_FIFO_PATH;
 
     sendRequest(request, serverFifoPath);
-
-    printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
-    printf("Type = %d | Length = %d \n", request.type, request.length);
-    if (args.opcode == OP_CREATE_ACCOUNT)
-        printf("Create ACC: ID = %d | Bal = %d | Pass = \"%s\"\n", request.value.create.account_id, request.value.create.balance, request.value.create.password);
-    if (args.opcode == OP_TRANSFER)
-        printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
    
     tlv_reply_t reply = awaitReply(userFifoPath);
 
     deleteUserFifo();
 
     // Debug :D
-
-
+    printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
+    printf("Type = %d | Length = %d \n", request.type, request.length);
+    if (args.opcode == OP_CREATE_ACCOUNT)
+        printf("Create ACC: ID = %d | Bal = %d | Pass = \"%s\"\n", request.value.create.account_id, request.value.create.balance, request.value.create.password);
+    if (args.opcode == OP_TRANSFER)
+        printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
 }
 
 void sigAlarmHandler() {
@@ -78,20 +75,6 @@ void sendRequest(tlv_request_t request, char* serverFifoPath) {
         deleteUserFifo();
         exit(0);
     }
-    /*
-    if (write(serverFifoFD, &request, sizeof(op_type_t) + sizeof(uint32_t) + sizeof(req_header_t)) == -1) {
-        perror("Error sending request header");
-        exit(1);
-    }
-    if (request.type == OP_CREATE_ACCOUNT && write(serverFifoFD, &request.value.create, sizeof(req_create_account_t)) == -1) {
-        perror("Error sending create acc");
-        exit(1);
-    }
-    if (request.type == OP_TRANSFER && write(serverFifoFD, &request.value.transfer, sizeof(req_transfer_t)) == -1) {
-        perror("Error sending transfer");
-        exit(1);
-    }
-    */
 
     if (write(serverFifoFD, &request, sizeof(op_type_t) + sizeof(uint32_t) + request.length) == -1) {
         perror("Error sending request header");
@@ -120,29 +103,7 @@ tlv_reply_t awaitReply(char* userFifoPath) {
         perror("Error reading reply balance");
         exit(1);
     }
-    
-    /*
-    if (read(userFifoFD, &reply, sizeof(op_type_t) + sizeof(uint32_t) + sizeof(rep_header_t)) == -1) {
-        perror("Error reading reply header");
-        exit(1);
-    }
-
-    if(request.type == OP_BALANCE && read(userFifoFD, &reply.value.balance, sizeof(rep_balance_t)) == -1) {
-        perror("Error reading reply balance");
-        exit(1);
-    }
-    
-    if(request.type == OP_TRANSFER && read(userFifoFD, &reply.value.transfer, sizeof(rep_transfer_t)) == -1) {
-        perror("Error reading reply transfer");
-        exit(1);
-    }
-    
-    if(request.type == OP_SHUTDOWN && read(userFifoFD, &reply.value.shutdown, sizeof(rep_shutdown_t)) == -1) {
-        perror("Error reading reply shutdown");
-        exit(1);
-    }
-    */
-    
+        
     alarm(0);
     close(userFifoFD);
     logReply(getULogFD(), getpid(), &reply);
