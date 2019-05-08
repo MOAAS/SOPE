@@ -4,6 +4,8 @@
 #include "bankoffice.h"
 #include "requestsQueue.h"
 #include "accounts.h"
+#include "queue.h"
+#include "semaphore.h"
 
 static const int BUFFER_SIZE = 5000;
 
@@ -14,7 +16,7 @@ static int numberOfOffices = 0;
 static bool* usedOffices; // partilhadooooooooo
 
 static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
-static RequestQueue* queue;
+static RequestsQueue* queue;
 static sem_t queueEmptySem;
 static sem_t queueFullSem;
 
@@ -59,14 +61,42 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
     //sendReply(,userFifoPath); //ACCOUNT CREATED
 }
 
-void handleBalanceRequest(tlv_request_t request, bank_account_t* account)
+void handleTransferRequest(tlv_request_t request, bank_account_t* account)
 {
+    if(account->account_id == ADMIN_ACCOUNT_ID)
+    {
+        //sendReply(,userFifoPath); //ADMIN ERROR
+        return;
+    }
 
+    if(account->account_id == request.value.transfer.account_id)
+    {
+        //sendReply(,userFifoPath); //SAME ID ERROR
+        return;
+    }
+
+    bank_account_t* destAccount;
+    if((destAccount = getAccount(request.value.transfer.account_id)) == NULL)
+    {
+        //sendReply(,userFifoPath); //DEST ACCOUNT DOESN'T EXIST ERROR
+        return;
+    }
+
+    if((account->balance - request.value.transfer.amount) < 0)
+    {
+        //sendReply(,userFifoPath); //NOT ENOUGH MONEY ERROR
+        return;
+    }
+
+    if((destAccount->balance + request.value.transfer.amount) > MAX_BALANCE)
+    {
+        //sendReply(,userFifoPath); //TOO HIGH ERROR
+        return;
+    }
 }
 
 void manageRequest(tlv_request_t request)
 {
-
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
     bank_account_t* account;
@@ -78,8 +108,10 @@ void manageRequest(tlv_request_t request)
             handleCreateAccountRequest(request, account);
             break;
         case OP_BALANCE:
+            //sendReply(,userFifoPath); //BALANCE
             break;
         case OP_TRANSFER:
+            handleTransferRequest(request, account);
             break;
         case OP_SHUTDOWN:
             break;
