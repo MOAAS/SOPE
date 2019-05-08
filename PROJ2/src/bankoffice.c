@@ -39,11 +39,16 @@ void waitForRequestFinish() {
     while (getNumActiveOffices() > 0);
 }
 
-bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* account)
-{
-    uint32_t account_id = request.value.header.account_id;
+void opDelay(int delayMS, int threadID) {
+    usleep(delayMS * 1000);
+    logDelay(getSLogFD(), threadID, delayMS);
+}
 
-    if((account = getAccount(account_id)) == NULL)
+bool validateAccount(tlv_request_t request, int threadID, char* userFifoPath)
+{    
+    bank_account_t* account = getAccount(request.value.header.account_id);
+    
+    if(account == NULL)
     {
         //sendReply(,userFifoPath); //UNKNOWN ACCOUNT ERROR
         return false;
@@ -59,15 +64,18 @@ bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* 
     return true;
 }
 
-void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
+void handleCreateAccountRequest(tlv_request_t request, int threadID, char* userFifoPath)
 {
-    if(account->account_id != ADMIN_ACCOUNT_ID)
+    opDelay(request.value.header.op_delay_ms, threadID);
+
+    uint32_t id = request.value.create.account_id; 
+
+    if(id != ADMIN_ACCOUNT_ID)
     {
         //sendReply(,userFifoPath); //NOT ADMIN ERROR
         return;
     }
 
-    uint32_t id = request.value.create.account_id; 
     if(getAccount(id) != NULL)
     {
         //sendReply(,userFifoPath); //ACCOUNT ALREADY IN USE
@@ -76,32 +84,37 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
 
     uint32_t balance = request.value.create.balance;
     char* password = request.value.create.password;
-    createAccount(id, balance, password, 0); // <- MUDAR POR THREAD ID
+    createAccount(id, balance, password, threadID);
     //sendReply(,userFifoPath); //ACCOUNT CREATED
 }
 
-void handleTransferRequest(tlv_request_t request, bank_account_t* account)
+void handleTransferRequest(tlv_request_t request, int threadID, char* userFifoPath)
 {
-    if(account->account_id == ADMIN_ACCOUNT_ID)
+    opDelay(request.value.header.op_delay_ms, threadID);
+    bank_account_t* srcAccount = getAccount(request.value.header.account_id);
+    bank_account_t* destAccount = getAccount(request.value.transfer.account_id);
+
+    if(srcAccount->account_id == ADMIN_ACCOUNT_ID)
     {
         //sendReply(,userFifoPath); //ADMIN ERROR
         return;
     }
 
-    if(account->account_id == request.value.transfer.account_id)
+    if(srcAccount->account_id == request.value.transfer.account_id)
     {
         //sendReply(,userFifoPath); //SAME ID ERROR
         return;
     }
 
-    bank_account_t* destAccount;
-    if((destAccount = getAccount(request.value.transfer.account_id)) == NULL)
+    if(destAccount == NULL)
     {
         //sendReply(,userFifoPath); //DEST ACCOUNT DOESN'T EXIST ERROR
         return;
     }
 
-    if((account->balance - request.value.transfer.amount) < 0)
+    // falta verificar se destino e admin
+
+    if((srcAccount->balance - request.value.transfer.amount) < 0)
     {
         //sendReply(,userFifoPath); //NOT ENOUGH MONEY ERROR
         return;
@@ -117,12 +130,12 @@ void handleTransferRequest(tlv_request_t request, bank_account_t* account)
 void handleShutdownRequest(tlv_request_t request, int threadID, char* userFifoPath) {
     tlv_reply_t reply;
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
+        opDelay(request.value.header.op_delay_ms, threadID);
         fchmod(serverFifoFD, 0444);
         close(serverFifoFD);
         reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
     }
     else reply = makeErrorReply(OP_NALLOW, request);
-    logReply(getSLogFD(), threadID, &reply);
     sendReply(reply, userFifoPath, threadID);
 }
 
@@ -130,19 +143,26 @@ void manageRequest(tlv_request_t request, int threadID)
 {
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
-    bank_account_t* account;
-    if(!validateAccount(request, userFifoPath, account)) return;
+    lockAccount(request.value.header.account_id, threadID);
+    if(!validateAccount(request, threadID, userFifoPath)) return;
+    unlockAccount(request.value.header.account_id, threadID);
 
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
-            handleCreateAccountRequest(request, account);
+            lockAccount(request.value.header.account_id, threadID);
+            handleCreateAccountRequest(request, threadID, userFifoPath);
+            unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_BALANCE:
+            lockAccount(request.value.header.account_id, threadID);
             //sendReply(,userFifoPath); //BALANCE
+            unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_TRANSFER:
-            handleTransferRequest(request, account);
+            lockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
+            handleTransferRequest(request, threadID, userFifoPath);
+            unlockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
             break;
         case OP_SHUTDOWN:
             handleShutdownRequest(request, threadID, userFifoPath);
@@ -299,7 +319,6 @@ tlv_request_t getRequestFromQueue(int threadID) {
 void sendReply(tlv_reply_t reply, char* userFifoPath, int threadID) {
     int userFifoFD = open(userFifoPath, O_WRONLY | O_NONBLOCK);
     if (userFifoFD == -1) {
-        printf("%s\n", userFifoPath);
         perror("Opening user Fifo");
         reply.value.header.ret_code = USR_DOWN;
         return;

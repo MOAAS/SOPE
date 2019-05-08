@@ -9,9 +9,6 @@
 #include "fifomaker.h"
 #include "replymaker.h"
 
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#define max(a, b) (((a) > (b)) ? (a) : (b)) 
-
 void* runBankOffice();
 void createBankOffices(int numOffices, int serverFifoFDW);
 void destroyBankOffices();

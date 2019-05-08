@@ -36,7 +36,6 @@ int main(int argc, char * argv[]) {
     char* userFifoPath = makeUserFifo();
     char* serverFifoPath = SERVER_FIFO_PATH;
 
-printf("%s\n", userFifoPath);
     sendRequest(request, serverFifoPath);
    
     reply = awaitReply(userFifoPath);
