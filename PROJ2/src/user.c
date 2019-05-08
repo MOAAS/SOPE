@@ -52,7 +52,7 @@ int main(int argc, char * argv[]) {
 
 void sigAlarmHandler() {
     printf("FIFO TIMEOUT. Exiting...\n");
-    logEmptyReply(getULogFD(), getpid(), SRV_TIMEOUT, request);
+    logErrorReply(getULogFD(), getpid(), SRV_TIMEOUT, request);
     deleteUserFifo();
     exit(0);
 }
@@ -75,7 +75,7 @@ void sendRequest(tlv_request_t request, char* serverFifoPath) {
     int serverFifoFD = open(serverFifoPath, O_WRONLY | O_NONBLOCK);
     if (serverFifoFD == -1) {
         perror("Error opening Server Fifo");
-        logEmptyReply(getULogFD(), getpid(), SRV_DOWN, request);
+        logErrorReply(getULogFD(), getpid(), SRV_DOWN, request);
         deleteUserFifo();
         exit(0);
     }
@@ -117,6 +117,7 @@ tlv_reply_t awaitReply(char* userFifoPath) {
 tlv_request_t createRequest(UserArgs args) {
     if (args.opcode < 0 || args.opcode >= __OP_MAX_NUMBER) {
         printf("Unknown optype: %d\n", args.opcode);
+        exit(1);
     }
     req_header_t header = makeReqHeader(args);    
     req_value_t value;

@@ -12,7 +12,7 @@
 #define max(a, b) (((a) > (b)) ? (a) : (b)) 
 
 void* runBankOffice();
-void createBankOffices(int numOffices);
+void createBankOffices(int numOffices, int serverFifoFDW);
 void destroyBankOffices();
 
 void addRequestToQueue(tlv_request_t request);

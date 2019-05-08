@@ -14,5 +14,5 @@ void openULog();
 int getSLogFD();
 int getULogFD();
 
-void logEmptyReply(int fd, int id, int retCode, tlv_request_t request);
-
+void logErrorReply(int fd, int id, int retCode, tlv_request_t request);
+void logShutdownReply(int fd, int id, int accountId, int activeOffices);
