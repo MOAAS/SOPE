@@ -145,9 +145,9 @@ tlv_reply_t handleTransferRequest(tlv_request_t request, bank_account_t* account
 }
 
 tlv_reply_t handleShutdownRequest(tlv_request_t request, int threadID) {
+    opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
-        opDelay(request.value.header.op_delay_ms, threadID);
         fchmod(serverFifoFD, 0444);
         close(serverFifoFD);
         reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
@@ -352,9 +352,8 @@ void sendReply(tlv_reply_t reply, char* userFifoPath, int threadID) {
     if (userFifoFD == -1) {
         perror("Opening user Fifo");
         reply.value.header.ret_code = USR_DOWN;
-        return;
     }
-    if (write(userFifoFD, &reply, sizeof(op_type_t) + sizeof(uint32_t) + reply.length) == -1) {
+    else if (write(userFifoFD, &reply, sizeof(op_type_t) + sizeof(uint32_t) + reply.length) == -1) {
         perror("Sending reply");
         exit(1);
     }

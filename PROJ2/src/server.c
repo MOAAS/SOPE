@@ -18,6 +18,13 @@
 void readRequests(int serverFifoFD);
 void addRequestToQueue(tlv_request_t request);
 
+void setupAccounts(char* adminPassword) {
+    clearAccounts();
+    lockAccount(0, 0);
+    createAccount(ADMIN_ACCOUNT_ID, 0, adminPassword, 0);
+    unlockAccount(0, 0);
+}
+
 int main(int argc, char* argv[]) {    
     ServerArgs args = processServerArgs(argc, argv);
     openSLog();
@@ -26,10 +33,8 @@ int main(int argc, char* argv[]) {
     int serverFifoFDR = openServerFifo(O_RDONLY);
     int serverFifoFDW = openServerFifo(O_WRONLY);
 
-    clearAccounts();
-    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword, 0);
+    setupAccounts(args.adminPassword);
     createBankOffices(args.numOffices, serverFifoFDW);    
-
     readRequests(serverFifoFDR);
 
     destroyBankOffices();
@@ -58,9 +63,6 @@ void readRequests(int serverFifoFD) {
         if (numBytesRead == 0)
             break;
 
-        // debug :D nao tirar pa nao encravare
         addRequestToQueue(request);
-
-
     }
 }
