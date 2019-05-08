@@ -24,6 +24,9 @@ tlv_reply_t awaitReply(char* userFifoPath);
 void sigAlarmHandler();
 void enableTimeoutAlarm();
 
+void displayRequest(tlv_request_t request);
+void displayReply(tlv_reply_t reply);
+
 static tlv_request_t request;
 static tlv_reply_t reply;
 
@@ -32,6 +35,8 @@ int main(int argc, char * argv[]) {
     openULog();
 
     request = createRequest(args);
+
+    displayRequest(request);
     
     char* userFifoPath = makeUserFifo();
     char* serverFifoPath = SERVER_FIFO_PATH;
@@ -39,23 +44,103 @@ int main(int argc, char * argv[]) {
     sendRequest(request, serverFifoPath);
    
     reply = awaitReply(userFifoPath);
-
+    
     deleteUserFifo();
 
-    // Debug :D
-    printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
-    printf("Type = %d | Length = %d \n", request.type, request.length);
-    if (args.opcode == OP_CREATE_ACCOUNT)
-        printf("Create ACC: ID = %d | Bal = %d | Pass = \"%s\"\n", request.value.create.account_id, request.value.create.balance, request.value.create.password);
-    if (args.opcode == OP_TRANSFER)
-        printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
+    displayReply(reply);
 }
 
+void displayRequest(tlv_request_t request) {
+    printf("\nSent request!\n");
+    printf(" - PID: %d | Delay: %d | Message length: %d\n",  request.value.header.pid, request.value.header.op_delay_ms, request.length);
+    printf(" - Account ID: %d | Password: \"%s\"\n", request.value.header.account_id, request.value.header.password);
+    switch(request.type) {
+        case OP_CREATE_ACCOUNT:
+            printf("Type: ACCOUNT CREATION\n");
+            printf(" - ID: %d | Password: \"%s\" | Initial Balance: %d€\n", request.value.create.account_id, request.value.create.password, request.value.create.balance);
+            break;
+        case OP_BALANCE: 
+            printf("Type: BALANCE CHECK\n");
+            break;
+        case OP_TRANSFER:
+            printf("Type: ACCOUNT TRANSFER\n");
+            printf(" - ID: %d | Amount: %d€\n", request.value.transfer.account_id, request.value.transfer.amount);
+            break;
+        case OP_SHUTDOWN:
+            printf("Type: SERVER SHUTDOWN\n");
+            break;
+    }
+    printf("\n------------------\n");
+}
+
+void displayReply(tlv_reply_t reply) {
+    printf("\nReceived reply!\n");
+    printf(" - Message length: %d\n", reply.length);
+    printf(" - Account ID: %d\n", request.value.header.account_id);
+    switch(reply.value.header.ret_code) {
+        case RC_OK:
+            printf("Status: OK\n");
+            break;
+        case RC_SRV_DOWN:
+            printf("Status: Server Down\n");
+            return;
+        case RC_SRV_TIMEOUT:
+            printf("Status: Server Timeout - Did not get response from server\n");
+            return;
+        case RC_USR_DOWN:
+            printf("Status: User Down - Could not connect with user.\n");
+            return;
+        case RC_LOGIN_FAIL:
+            printf("Status: Login Fail - Account ID and password don't match.\n");
+            return;
+        case RC_OP_NALLOW:
+            printf("Status: Operation not allowed.\n");
+            return;
+        case RC_ID_IN_USE:
+            printf("Status: Account ID in use.\n");
+            return;
+        case RC_ID_NOT_FOUND:
+            printf("Status: Account ID could not be found.\n");
+            return;           
+        case RC_SAME_ID:
+            printf("Status: Sender and Receiver have the same ID.\n");
+            return;           
+        case RC_NO_FUNDS:
+            printf("Status: Sender has not enough funds.\n");
+            return;           
+        case RC_TOO_HIGH:
+            printf("Status: Receiver would have too many funds.\n");
+            return;           
+        case RC_OTHER:
+            printf("Status: Unexpected error.\n");
+            return;           
+
+    }
+    switch(reply.type) {
+        case OP_CREATE_ACCOUNT:
+            printf("Type: ACCOUNT CREATION\n");
+            break;
+        case OP_BALANCE: 
+            printf("Type: BALANCE CHECK\n");
+            printf(" - Balance: %d€\n", reply.value.balance.balance);
+            break;
+        case OP_TRANSFER:
+            printf("Type: ACCOUNT TRANSFER\n");
+            printf(" - Balance: %d€\n", reply.value.transfer.balance);
+            break;
+        case OP_SHUTDOWN:
+            printf("Type: SERVER SHUTDOWN");
+            printf(" - Number of active offices: %d\n", reply.value.shutdown.active_offices);
+            break;
+    }
+}
+
+
 void sigAlarmHandler() {
-    printf("FIFO TIMEOUT. Exiting...\n");
     reply = makeErrorReply(SRV_TIMEOUT, request);
     logReply(getULogFD(), getpid(), &reply);
     deleteUserFifo();
+    displayReply(reply);
     exit(0);
 }
 
