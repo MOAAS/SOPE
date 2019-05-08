@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "bankoffice.h"
-#include "requestsQueue.h"
 #include "accounts.h"
 #include "queue.h"
 #include "semaphore.h"
@@ -16,7 +15,7 @@ static int numberOfOffices = 0;
 static bool* activeOffices; // partilhadooooooooo
 
 static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
-static RequestsQueue* queue;
+static RequestQueue* queue;
 static sem_t queueEmptySem;
 static sem_t queueFullSem;
 
