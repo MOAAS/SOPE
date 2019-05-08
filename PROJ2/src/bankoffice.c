@@ -40,6 +40,10 @@ void waitForRequestFinish() {
     while (getNumActiveOffices() > 0);
 }
 
+void opDelay(int delayMS, int threadID) {
+    usleep(delayMS * 1000);
+    logDelay(getSLogFD(), threadID, delayMS);
+}
 void makeErrorReply(tlv_reply_t* reply, int error)
 {
     reply->value.header.ret_code = error;
@@ -50,7 +54,11 @@ bool validateAccount(tlv_request_t request, bank_account_t* account, tlv_reply_t
 {
     uint32_t account_id = request.value.header.account_id;
 
-    if((account = getAccount(account_id)) == NULL)
+bool validateAccount(tlv_request_t request, int threadID, char* userFifoPath)
+{    
+    bank_account_t* account = getAccount(request.value.header.account_id);
+    
+    if(account == NULL)
     {
         makeErrorReply(reply, LOGIN_FAIL);
         return false;
@@ -68,6 +76,7 @@ bool validateAccount(tlv_request_t request, bank_account_t* account, tlv_reply_t
 
 void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account, tlv_reply_t* reply)
 {
+    opDelay(request.value.header.op_delay_ms, threadID);
     reply->value.header.account_id = account->account_id;
     if(account->account_id != ADMIN_ACCOUNT_ID)
     {
@@ -75,7 +84,6 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account, 
         return;
     }
 
-    uint32_t id = request.value.create.account_id; 
     if(getAccount(id) != NULL)
     {
         makeErrorReply(reply, ID_IN_USE);
@@ -96,26 +104,31 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account, 
 
 void handleTransferRequest(tlv_request_t request, bank_account_t* account, tlv_reply_t* reply)
 {
-    if(account->account_id == ADMIN_ACCOUNT_ID)
+    opDelay(request.value.header.op_delay_ms, threadID);
+    bank_account_t* srcAccount = getAccount(request.value.header.account_id);
+    bank_account_t* destAccount = getAccount(request.value.transfer.account_id);
+
+    if(srcAccount->account_id == ADMIN_ACCOUNT_ID)
     {
         makeErrorReply(reply, OP_NALLOW);
         return;
     }
 
-    if(account->account_id == request.value.transfer.account_id)
+    if(srcAccount->account_id == request.value.transfer.account_id)
     {
         makeErrorReply(reply, SAME_ID);
         return;
     }
 
-    bank_account_t* destAccount;
-    if((destAccount = getAccount(request.value.transfer.account_id)) == NULL)
+    if(destAccount == NULL)
     {
         makeErrorReply(reply, ID_NOT_FOUND);
         return;
     }
 
-    if((account->balance - request.value.transfer.amount) < 0)
+    // falta verificar se destino e admin
+
+    if((srcAccount->balance - request.value.transfer.amount) < 0)
     {
         makeErrorReply(reply, NO_FUNDS);
         return;
@@ -139,16 +152,16 @@ void handleTransferRequest(tlv_request_t request, bank_account_t* account, tlv_r
     reply->length = sizeof(int) + sizeof(uint32_t)*2;
 }
 
-void handleShutdownRequest(tlv_request_t request, int threadID) {
-    if (request.value.header.account_id != ADMIN_ACCOUNT_ID) {
-        logErrorReply(getSLogFD(), threadID, OP_NALLOW, request);
-        return;
+void handleShutdownRequest(tlv_request_t request, int threadID, char* userFifoPath) {
+    tlv_reply_t reply;
+    if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
+        opDelay(request.value.header.op_delay_ms, threadID);
+        fchmod(serverFifoFD, 0444);
+        close(serverFifoFD);
+        reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
     }
-
-    fchmod(serverFifoFD, 0444);
-    close(serverFifoFD);
-
-    logShutdownReply(getSLogFD(), threadID, request.value.header.account_id, getNumActiveOffices());
+    else reply = makeErrorReply(OP_NALLOW, request);
+    sendReply(reply, userFifoPath, threadID);
 }
 
 void handleBalanceRequest(tlv_request_t request, tlv_reply_t* reply)
@@ -160,26 +173,34 @@ void manageRequest(tlv_request_t request, int threadID)
 {
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
+    lockAccount(request.value.header.account_id, threadID);
     bank_account_t* account;
     tlv_reply_t* reply = (tlv_reply_t*) malloc(sizeof(tlv_reply_t));
     if(!validateAccount(request, account, reply))
     {
         sendReply(*reply, userFifoPath, threadID);
     }
+    unlockAccount(request.value.header.account_id, threadID);
 
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
+            lockAccount(request.value.header.account_id, threadID);
             handleCreateAccountRequest(request, account, reply);
+            unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_BALANCE:
-            
+            lockAccount(request.value.header.account_id, threadID);
+            //sendReply(,userFifoPath); //BALANCE
+            unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_TRANSFER:
+            lockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
             handleTransferRequest(request, account, reply);
+            unlockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
             break;
         case OP_SHUTDOWN:
-            handleShutdownRequest(request, threadID);
+            handleShutdownRequest(request, threadID, userFifoPath);
             break;
     }
 
@@ -219,6 +240,18 @@ void createQueue() {
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_INIT, SYNC_ROLE_PRODUCER, 0, semValue); 
 }
 
+void destroyQueue() {
+    if (sem_destroy(&queueEmptySem) == -1) {
+        perror("Error destroying empty sem");
+        exit(1);
+    }
+
+    if (sem_destroy(&queueFullSem) == -1) {
+        perror("Error destroying full sem");
+        exit(1);
+    }
+}
+
 void createBankOffices(int numOffices, int serverFifoFDW) {
     serverFifoFD = serverFifoFDW;
     numOffices = min(numOffices, MAX_BANK_OFFICES);
@@ -248,6 +281,7 @@ void destroyBankOffices() {
         logBankOfficeClose(getSLogFD(), i + 1, officeTids[i]);
     }
     free(officeTids);
+    destroyQueue();
     numberOfOffices = 0;
 }
 

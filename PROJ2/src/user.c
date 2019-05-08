@@ -11,6 +11,7 @@
 #include "fifoMaker.h"
 #include "argProcessing.h"
 #include "sope.h"
+#include "replymaker.h"
 
 tlv_request_t createRequest(UserArgs args);
 req_header_t makeReqHeader(UserArgs args);
@@ -37,7 +38,7 @@ int main(int argc, char * argv[]) {
 
     sendRequest(request, serverFifoPath);
    
-    tlv_reply_t reply = awaitReply(userFifoPath);
+    reply = awaitReply(userFifoPath);
 
     deleteUserFifo();
 
@@ -52,7 +53,8 @@ int main(int argc, char * argv[]) {
 
 void sigAlarmHandler() {
     printf("FIFO TIMEOUT. Exiting...\n");
-    logErrorReply(getULogFD(), getpid(), SRV_TIMEOUT, request);
+    reply = makeErrorReply(SRV_TIMEOUT, request);
+    logReply(getULogFD(), getpid(), &reply);
     deleteUserFifo();
     exit(0);
 }
@@ -75,7 +77,8 @@ void sendRequest(tlv_request_t request, char* serverFifoPath) {
     int serverFifoFD = open(serverFifoPath, O_WRONLY | O_NONBLOCK);
     if (serverFifoFD == -1) {
         perror("Error opening Server Fifo");
-        logErrorReply(getULogFD(), getpid(), SRV_DOWN, request);
+        reply = makeErrorReply(SRV_DOWN, request);
+        logReply(getULogFD(), getpid(), &reply);
         deleteUserFifo();
         exit(0);
     }

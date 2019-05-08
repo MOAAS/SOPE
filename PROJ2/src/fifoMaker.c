@@ -39,7 +39,7 @@ int openServerFifo(int mode) {
 char* getUserFifoPath(int pid) {
     char* userFifoPath = malloc(USER_FIFO_PATH_LEN + 1);
     char userPID[WIDTH_ID + 1];
-    sprintf(userPID, "%05d", getpid());
+    sprintf(userPID, "%05d", pid);
     strcpy(userFifoPath, USER_FIFO_PATH_PREFIX);
     strcat(userFifoPath, userPID);
     return userFifoPath;
