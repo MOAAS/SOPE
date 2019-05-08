@@ -1,10 +1,32 @@
-E - 01399 - [ 33 bytes] 01399 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
-R - 01399 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
-E - 01432 - [ 33 bytes] 01432 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
-R - 01432 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
-E - 01459 - [ 33 bytes] 01459 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
-R - 01459 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
-E - 01508 - [ 33 bytes] 01508 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
-R - 01508 - [ 12 bytes] 0000 SHUTDOWN           OK 1
-E - 31906 - [ 62 bytes] 31906 (0000, "helo")                 [    0 ms] CREATE   0003       3000€ "parabensVitor"
-R - 31906 - [  8 bytes] 0000   CREATE  SRV_TIMEOUT
+E - 02993 - [ 62 bytes] 02993 (0000, "ultra_top_secret")     [   10 ms] CREATE   0001         25€ "top_secret"
+R - 02993 - [  8 bytes] 0000   CREATE           OK
+E - 03006 - [ 33 bytes] 03006 (0001, "top_secret")           [ 1234 ms] BALANCE 
+R - 03006 - [  8 bytes] 0001  BALANCE    OP_NALLOW          0€
+E - 03035 - [ 62 bytes] 03035 (0000, "ultra_top_secret")     [   10 ms] CREATE   0001         25€ "top_secret"
+R - 03035 - [  8 bytes] 0000   CREATE           OK
+E - 03048 - [ 33 bytes] 03048 (0001, "top_secret")           [ 1234 ms] BALANCE 
+R - 03048 - [ 12 bytes] 0001  BALANCE           OK         25€
+E - 03052 - [ 41 bytes] 03052 (0001, "top_secret")           [  567 ms] TRANSFER 0002         10€
+R - 03052 - [  8 bytes] 0001 TRANSFER  SRV_TIMEOUT          0€
+E - 03057 - [ 62 bytes] 03057 (0000, "ultra_top_secret")     [   10 ms] CREATE   0001         25€ "top_secret"
+R - 03057 - [  8 bytes] 0000   CREATE           OK
+E - 03070 - [ 41 bytes] 03070 (0001, "top_secret")           [  567 ms] TRANSFER 0002         10€
+R - 03070 - [  8 bytes] 0001 TRANSFER  SRV_TIMEOUT          0€
+E - 03117 - [ 62 bytes] 03117 (0000, "ultra_top_secret")     [   10 ms] CREATE   0001         25€ "top_secret"
+R - 03117 - [  8 bytes] 0000   CREATE           OK
+E - 03130 - [ 33 bytes] 03130 (0001, "top_secret")           [ 1234 ms] BALANCE 
+R - 03130 - [ 12 bytes] 0001  BALANCE           OK         25€
+E - 03134 - [ 41 bytes] 03134 (0001, "top_secret")           [  567 ms] TRANSFER 0002         10€
+R - 03134 - [ 12 bytes] 0001 TRANSFER ID_NOT_FOUND         25€
+E - 03138 - [ 62 bytes] 03138 (0000, "ultra_top_secret")     [   10 ms] CREATE   0002          3€ "a_secret"
+R - 03138 - [  8 bytes] 0000   CREATE           OK
+E - 03145 - [ 41 bytes] 03145 (0001, "top_secret")           [  567 ms] TRANSFER 0002         10€
+R - 03145 - [ 12 bytes] 0001 TRANSFER           OK         15€
+E - 03149 - [ 33 bytes] 03149 (0002, "a_secret")             [  890 ms] BALANCE 
+R - 03149 - [ 12 bytes] 0002  BALANCE           OK         13€
+E - 03153 - [ 33 bytes] 03153 (0001, "top_secret")           [ 5000 ms] SHUTDOWN
+R - 03153 - [  8 bytes] 0001 SHUTDOWN    OP_NALLOW 0
+E - 03157 - [ 33 bytes] 03157 (0000, "ultra_top_secret")     [ 5000 ms] SHUTDOWN
+R - 03157 - [ 12 bytes] 0000 SHUTDOWN           OK 1
+E - 03161 - [ 33 bytes] 03161 (0001, "top_secret")           [ 5000 ms] BALANCE 
+R - 03161 - [  8 bytes] 0001  BALANCE     SRV_DOWN          0€

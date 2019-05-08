@@ -45,40 +45,41 @@ void opDelay(int delayMS, int threadID) {
     logDelay(getSLogFD(), threadID, delayMS);
 }
 
-bool validateAccount(tlv_request_t request, bank_account_t* account, tlv_reply_t* reply)
+bool validateAccount(tlv_request_t request, tlv_reply_t* reply)
 {
     uint32_t account_id = request.value.header.account_id;   
-    *account = *getAccount(request.value.header.account_id);
+    bank_account_t* account = getAccount(account_id);
     
     if(account == NULL)
     {
-        makeErrorReply(LOGIN_FAIL, request);
+        *reply = makeErrorReply(LOGIN_FAIL, request);
         return false;
     }
 
     char* hash = generateHash(request.value.header.password, account->salt);
 
     if(strcmp(hash, account->hash) != 0) {
-        makeErrorReply(LOGIN_FAIL, request);
+        *reply = makeErrorReply(LOGIN_FAIL, request);
         return false;
     }
 
     return true;
 }
 
-tlv_reply_t handleCreateAccountRequest(tlv_request_t request, bank_account_t* account, int threadID)
+tlv_reply_t handleCreateAccountRequest(tlv_request_t request, int threadID)
 {
     opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
+    uint32_t accountID = request.value.header.account_id;
+    uint32_t newAccId = request.value.create.account_id;
 
-    reply.value.header.account_id = account->account_id;
-    if(account->account_id != ADMIN_ACCOUNT_ID)
+    if(accountID != ADMIN_ACCOUNT_ID)
     {
         reply = makeErrorReply(OP_NALLOW, request);
         return reply;
     }
-    int id = request.value.create.account_id;
-    if(getAccount(id) != NULL)
+
+    if(getAccount(newAccId) != NULL)
     {
         reply = makeErrorReply(ID_IN_USE, request);
         return reply;
@@ -86,14 +87,14 @@ tlv_reply_t handleCreateAccountRequest(tlv_request_t request, bank_account_t* ac
 
     uint32_t balance = request.value.create.balance;
     char* password = request.value.create.password;
-    createAccount(id, balance, password, threadID);
+    createAccount(newAccId, balance, password, threadID);
     
-    reply = makeCreateReply(id);
+    reply = makeCreateReply(accountID);
 
     return reply;
 }
 
-tlv_reply_t handleTransferRequest(tlv_request_t request, bank_account_t* account, int threadID)
+tlv_reply_t handleTransferRequest(tlv_request_t request, int threadID)
 {
     opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
@@ -102,64 +103,66 @@ tlv_reply_t handleTransferRequest(tlv_request_t request, bank_account_t* account
 
     if(srcAccount->account_id == ADMIN_ACCOUNT_ID)
     {
-        reply = makeErrorReply(OP_NALLOW, request);
-        return reply;
-    }
-
-    if(srcAccount->account_id == request.value.transfer.account_id)
-    {
-        reply = makeErrorReply(SAME_ID, request);
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, OP_NALLOW);
         return reply;
     }
 
     if(destAccount == NULL)
     {
-        reply = makeErrorReply(ID_NOT_FOUND, request);
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, ID_NOT_FOUND);
         return reply;
     }
 
-    if(destAccount->account_id == ADMIN_ACCOUNT_ID)
+    if (destAccount->account_id == ADMIN_ACCOUNT_ID)
     {
-        reply = makeErrorReply(OP_NALLOW, request);
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, OP_NALLOW);
+        return reply;
+    }
+
+    if(srcAccount->account_id == request.value.transfer.account_id)
+    {
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, SAME_ID);
         return reply;
     }
 
     if((srcAccount->balance - request.value.transfer.amount) < 0)
     {
-        reply = makeErrorReply(NO_FUNDS, request);
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, NO_FUNDS);
         return reply;
     }
 
     if((destAccount->balance + request.value.transfer.amount) > MAX_BALANCE)
     {
-        reply = makeErrorReply(TOO_HIGH, request);
+        reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, TOO_HIGH);
         return reply;
     }
 
-    account->balance -= request.value.transfer.amount;
+    srcAccount->balance -= request.value.transfer.amount;
     destAccount->balance += request.value.transfer.amount;
 
-    reply = makeTransferReply(account->account_id, account->balance);
+    reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, OK);
 
     return reply;
 }
 
 tlv_reply_t handleShutdownRequest(tlv_request_t request, int threadID) {
     opDelay(request.value.header.op_delay_ms, threadID);
-    tlv_reply_t reply;
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
         fchmod(serverFifoFD, 0444);
         close(serverFifoFD);
-        reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
+        return makeShutdownReply(request.value.header.account_id, getNumActiveOffices());
     }
-    else reply = makeErrorReply(OP_NALLOW, request);
+    else return makeErrorReply(OP_NALLOW, request);
 }
 
-tlv_reply_t handleBalanceRequest(tlv_request_t request, bank_account_t* account, int threadID)
+tlv_reply_t handleBalanceRequest(tlv_request_t request, int threadID)
 {
     opDelay(request.value.header.op_delay_ms, threadID);
-    tlv_reply_t reply = makeBalanceReply(account->account_id, account->balance);
-    return reply;
+    if (request.value.header.account_id != ADMIN_ACCOUNT_ID) {
+        bank_account_t* account = getAccount(request.value.header.account_id);
+        return makeBalanceReply(account->account_id, account->balance);
+    }
+    else return makeErrorReply(OP_NALLOW, request);
 }
 
 void manageRequest(tlv_request_t request, int threadID)
@@ -169,28 +172,29 @@ void manageRequest(tlv_request_t request, int threadID)
     lockAccount(request.value.header.account_id, threadID);
     bank_account_t* account;
     tlv_reply_t reply;
-
-    if(!validateAccount(request, account, &reply))
-    {
-        sendReply(reply, userFifoPath, threadID);
-    }
+    bool validAccount = validateAccount(request, &reply);
     unlockAccount(request.value.header.account_id, threadID);
+    
+    if (!validAccount) {
+        sendReply(reply, userFifoPath, threadID);
+        return;
+    }
 
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
             lockAccount(request.value.header.account_id, threadID);
-            reply = handleCreateAccountRequest(request, account, threadID);
+            reply = handleCreateAccountRequest(request, threadID);
             unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_BALANCE:
             lockAccount(request.value.header.account_id, threadID);
-            reply = handleBalanceRequest(request, account, threadID);
+            reply = handleBalanceRequest(request, threadID);
             unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_TRANSFER:
             lockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
-            reply = handleTransferRequest(request, account, threadID);
+            reply = handleTransferRequest(request, threadID);
             unlockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
             break;
         case OP_SHUTDOWN:
@@ -281,6 +285,8 @@ void destroyBankOffices() {
 
 // Produtor
 void addRequestToQueue(tlv_request_t request) {
+    logRequest(getSLogFD(), 0, &request);
+
     int semValue;
     sem_getvalue(&queueEmptySem, &semValue);
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_WAIT, SYNC_ROLE_PRODUCER, request.value.header.pid, semValue);
@@ -298,8 +304,6 @@ void addRequestToQueue(tlv_request_t request) {
     sem_getvalue(&queueFullSem, &semValue);
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_POST, SYNC_ROLE_PRODUCER, request.value.header.pid, semValue);
     
-    logRequest(getSLogFD(), 0, &request);
-
     // DEBUG
     printf("ADD REQUEST::::\n");
     printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);

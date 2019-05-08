@@ -43,11 +43,11 @@ tlv_reply_t makeBalanceReply(int accountId, int balance) {
     return reply;
 }
 
-tlv_reply_t makeTransferReply(int accountId, int balance) {
+tlv_reply_t makeTransferReply(int accountId, int balance, int retCode) {
     tlv_reply_t reply;
 
     reply.type = OP_TRANSFER;
-    reply.value.header.ret_code = OK;
+    reply.value.header.ret_code = retCode;
     reply.value.header.account_id = accountId;
     reply.value.transfer.balance = balance;
     reply.length = sizeof(reply.value.header) + sizeof(rep_transfer_t);
