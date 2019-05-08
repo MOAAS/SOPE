@@ -6,3 +6,7 @@ E - 01459 - [ 33 bytes] 01459 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
 R - 01459 - [  8 bytes] 0000 SHUTDOWN  SRV_TIMEOUT 0
 E - 01508 - [ 33 bytes] 01508 (0000, "PassWord")             [ 1000 ms] SHUTDOWN
 R - 01508 - [ 12 bytes] 0000 SHUTDOWN           OK 1
+E - 31746 - [ 62 bytes] 31746 (0000, "helo")                 [    0 ms] CREATE   0003       3000€ "parabensVitor"
+R - 31746 - [  8 bytes] 0000   CREATE  SRV_TIMEOUT
+E - 31762 - [ 62 bytes] 31762 (0000, "helo")                 [    0 ms] CREATE   0003       3000€ "parabensVitor"
+R - 31762 - [  8 bytes] 0000   CREATE  SRV_TIMEOUT
