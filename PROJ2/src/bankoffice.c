@@ -75,7 +75,7 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
 
     uint32_t balance = request.value.create.balance;
     char* password = request.value.create.password;
-    createAccount(id, balance, password);
+    createAccount(id, balance, password, 0); // <- MUDAR POR THREAD ID
     //sendReply(,userFifoPath); //ACCOUNT CREATED
 }
 
@@ -83,16 +83,16 @@ void handleBalanceRequest(tlv_request_t request, bank_account_t* account) {
 
 }
 
-void handleShutdownRequest(tlv_request_t request, int threadID) {
-    if (request.value.header.account_id != ADMIN_ACCOUNT_ID) {
-        logErrorReply(getSLogFD(), threadID, OP_NALLOW, request);
-        return;
+void handleShutdownRequest(tlv_request_t request, int threadID, char* userFifoPath) {
+    tlv_reply_t reply;
+    if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
+        fchmod(serverFifoFD, 0444);
+        close(serverFifoFD);
+        reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
     }
-
-    fchmod(serverFifoFD, 0444);
-    close(serverFifoFD);
-
-    logShutdownReply(getSLogFD(), threadID, request.value.header.account_id, getNumActiveOffices());
+    else reply = makeErrorReply(OP_NALLOW, request);
+    logReply(getSLogFD(), threadID, &reply);
+    sendReply(reply, userFifoPath, threadID);
 }
 
 void manageRequest(tlv_request_t request, int threadID)
@@ -112,7 +112,7 @@ void manageRequest(tlv_request_t request, int threadID)
         case OP_TRANSFER:
             break;
         case OP_SHUTDOWN:
-            handleShutdownRequest(request, threadID);
+            handleShutdownRequest(request, threadID, userFifoPath);
             break;
     }
 }
@@ -150,6 +150,18 @@ void createQueue() {
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_INIT, SYNC_ROLE_PRODUCER, 0, semValue); 
 }
 
+void destroyQueue() {
+    if (sem_destroy(&queueEmptySem) == -1) {
+        perror("Error destroying empty sem");
+        exit(1);
+    }
+
+    if (sem_destroy(&queueFullSem) == -1) {
+        perror("Error destroying full sem");
+        exit(1);
+    }
+}
+
 void createBankOffices(int numOffices, int serverFifoFDW) {
     serverFifoFD = serverFifoFDW;
     numOffices = min(numOffices, MAX_BANK_OFFICES);
@@ -179,6 +191,7 @@ void destroyBankOffices() {
         logBankOfficeClose(getSLogFD(), i + 1, officeTids[i]);
     }
     free(officeTids);
+    destroyQueue();
     numberOfOffices = 0;
 }
 
@@ -253,6 +266,7 @@ tlv_request_t getRequestFromQueue(int threadID) {
 void sendReply(tlv_reply_t reply, char* userFifoPath, int threadID) {
     int userFifoFD = open(userFifoPath, O_WRONLY | O_NONBLOCK);
     if (userFifoFD == -1) {
+        printf("%s\n", userFifoPath);
         perror("Opening user Fifo");
         reply.value.header.ret_code = USR_DOWN;
         return;

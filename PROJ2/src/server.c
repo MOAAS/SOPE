@@ -27,13 +27,13 @@ int main(int argc, char* argv[]) {
     int serverFifoFDW = openServerFifo(O_WRONLY);
 
     clearAccounts();
-    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword);
-    logAccountCreation(getSLogFD(), 0, &admin_acc);
+    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword, 0);
     createBankOffices(args.numOffices, serverFifoFDW);    
 
     readRequests(serverFifoFDR);
 
     destroyBankOffices();
+    destroyAccounts();
 
     close(serverFifoFDR);
     unlink(SERVER_FIFO_PATH);
