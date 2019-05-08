@@ -15,31 +15,32 @@
 #include "accounts.h"
 #include "bankoffice.h"
 
-void readRequests(int serverFifoFD, int serverFifoFDW);
+void readRequests(int serverFifoFD);
 void addRequestToQueue(tlv_request_t request);
 
 int main(int argc, char* argv[]) {    
     ServerArgs args = processServerArgs(argc, argv);
     openSLog();
 
-    clearAccounts();
-    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword);
-    logAccountCreation(getSLogFD(), 0, &admin_acc);
-    createBankOffices(args.numOffices);    
-
     makeServerFifo();
     int serverFifoFDR = openServerFifo(O_RDONLY);
     int serverFifoFDW = openServerFifo(O_WRONLY);
 
-    readRequests(serverFifoFDR, serverFifoFDW);
+    clearAccounts();
+    bank_account_t admin_acc = createAccount(ADMIN_ACCOUNT_ID, 0, args.adminPassword);
+    logAccountCreation(getSLogFD(), 0, &admin_acc);
+    createBankOffices(args.numOffices, serverFifoFDW);    
+
+    readRequests(serverFifoFDR);
+
+    destroyBankOffices();
 
     close(serverFifoFDR);
     unlink(SERVER_FIFO_PATH);
-    destroyBankOffices();
     return 0;
 }
 
-void readRequests(int serverFifoFD, int serverFifoFDW) {
+void readRequests(int serverFifoFD) {
     int numBytesRead;
     while (true) {
         tlv_request_t request;
@@ -58,8 +59,8 @@ void readRequests(int serverFifoFD, int serverFifoFDW) {
             break;
 
         // debug :D nao tirar pa nao encravare
-        //close(serverFifoFDW);
-
         addRequestToQueue(request);
+
+
     }
 }

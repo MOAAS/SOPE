@@ -11,12 +11,33 @@ static pthread_t* officeTids;
 static int* threadNums;
 static int numberOfOffices = 0;
 
-static bool* usedOffices; // partilhadooooooooo
+static bool* activeOffices; // partilhadooooooooo
+static bool shutdown = false; // partilhaadoooo
 
 static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
 static RequestQueue* queue;
 static sem_t queueEmptySem;
 static sem_t queueFullSem;
+
+static int serverFifoFD;
+
+int getNumActiveOffices() {
+    int numActiveOffices = 0;
+    for (int i = 0; i < numberOfOffices; i++) {
+        numActiveOffices += activeOffices[i];
+    }
+    return numActiveOffices;
+}
+
+void waitForRequestFinish() {
+    bool queueEmpty = false;
+    while(!queueEmpty) {
+        pthread_mutex_lock(&queueMutex); // Lock
+        queueEmpty = queue_empty(queue);
+        pthread_mutex_unlock(&queueMutex); // Unlock
+    }
+    while (getNumActiveOffices() > 0);
+}
 
 bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* account)
 {
@@ -29,8 +50,8 @@ bool validateAccount(tlv_request_t request, char* userFifoPath, bank_account_t* 
     }
 
     char* hash = generateHash(request.value.header.password, account->salt);
-    if(hash != account->hash)
-    {
+
+    if(strcmp(hash, account->hash) != 0) {
         //sendReply(,userFifoPath); //INCORRECT PASSWORD ERROR
         return false;
     }
@@ -59,14 +80,24 @@ void handleCreateAccountRequest(tlv_request_t request, bank_account_t* account)
     //sendReply(,userFifoPath); //ACCOUNT CREATED
 }
 
-void handleBalanceRequest(tlv_request_t request, bank_account_t* account)
-{
+void handleBalanceRequest(tlv_request_t request, bank_account_t* account) {
 
 }
 
-void manageRequest(tlv_request_t request)
-{
+void handleShutdownRequest(tlv_request_t request, int threadID) {
+    if (request.value.header.account_id != ADMIN_ACCOUNT_ID) {
+        logErrorReply(getSLogFD(), threadID, OP_NALLOW, request);
+        return;
+    }
 
+    fchmod(serverFifoFD, 0444);
+    close(serverFifoFD);
+
+    logShutdownReply(getSLogFD(), threadID, request.value.header.account_id, getNumActiveOffices());
+}
+
+void manageRequest(tlv_request_t request, int threadID)
+{
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
     bank_account_t* account;
@@ -82,22 +113,21 @@ void manageRequest(tlv_request_t request)
         case OP_TRANSFER:
             break;
         case OP_SHUTDOWN:
-            break;
-        case __OP_MAX_NUMBER:
+            handleShutdownRequest(request, threadID);
             break;
     }
 }
 
 void* runBankOffice(void* officeNum) {
     int num = *(int*)officeNum;
-    usedOffices[num - 1] = true;
+    activeOffices[num - 1] = false;
 
     while(true) {
         tlv_request_t request = getRequestFromQueue(num);
-        manageRequest(request);
+        manageRequest(request, num);
+        activeOffices[num - 1] = false;
     }
 
-    usedOffices[num - 1] = false;
     return NULL; 
 }
 
@@ -121,13 +151,14 @@ void createQueue() {
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_INIT, SYNC_ROLE_PRODUCER, 0, semValue); 
 }
 
-void createBankOffices(int numOffices) {
+void createBankOffices(int numOffices, int serverFifoFDW) {
+    serverFifoFD = serverFifoFDW;
     numOffices = min(numOffices, MAX_BANK_OFFICES);
     numOffices = max(numOffices, 1);
     numberOfOffices = numOffices;
     officeTids = malloc(numOffices * sizeof(pthread_t));
     threadNums = malloc(numOffices * sizeof(int));
-    usedOffices = malloc(numOffices * sizeof(bool));
+    activeOffices = malloc(numOffices * sizeof(bool));
     createQueue();
     for(int i = 0; i < numOffices; i++) {
         pthread_t tid;
@@ -142,7 +173,9 @@ void createBankOffices(int numOffices) {
 }
 
 void destroyBankOffices() {
+    waitForRequestFinish();
     for (int i = 0; i < numberOfOffices; i++) {
+        pthread_cancel(officeTids[i]);
         pthread_join(officeTids[i], NULL);
         logBankOfficeClose(getSLogFD(), i + 1, officeTids[i]);
     }
@@ -189,6 +222,8 @@ tlv_request_t getRequestFromQueue(int threadID) {
 
     sem_wait(&queueFullSem); // Wait
 
+    activeOffices[threadID - 1] = true;
+    
     logSyncMech(getSLogFD(), threadID, SYNC_OP_MUTEX_LOCK, SYNC_ROLE_CONSUMER, 0);
     pthread_mutex_lock(&queueMutex); // Lock
     tlv_request_t request = queue_pop(queue); // Take
