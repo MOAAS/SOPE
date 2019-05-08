@@ -67,16 +67,15 @@ bool validateAccount(tlv_request_t request, int threadID, char* userFifoPath)
 void handleCreateAccountRequest(tlv_request_t request, int threadID, char* userFifoPath)
 {
     opDelay(request.value.header.op_delay_ms, threadID);
+    uint32_t newAccId = request.value.create.account_id; 
 
-    uint32_t id = request.value.create.account_id; 
-
-    if(id != ADMIN_ACCOUNT_ID)
+    if(request.value.header.account_id != ADMIN_ACCOUNT_ID)
     {
         //sendReply(,userFifoPath); //NOT ADMIN ERROR
         return;
     }
 
-    if(getAccount(id) != NULL)
+    if(getAccount(newAccId) != NULL)
     {
         //sendReply(,userFifoPath); //ACCOUNT ALREADY IN USE
         return;
@@ -84,7 +83,7 @@ void handleCreateAccountRequest(tlv_request_t request, int threadID, char* userF
 
     uint32_t balance = request.value.create.balance;
     char* password = request.value.create.password;
-    createAccount(id, balance, password, threadID);
+    createAccount(newAccId, balance, password, threadID);
     //sendReply(,userFifoPath); //ACCOUNT CREATED
 }
 
@@ -128,9 +127,9 @@ void handleTransferRequest(tlv_request_t request, int threadID, char* userFifoPa
 }
 
 void handleShutdownRequest(tlv_request_t request, int threadID, char* userFifoPath) {
+    opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
-        opDelay(request.value.header.op_delay_ms, threadID);
         fchmod(serverFifoFD, 0444);
         close(serverFifoFD);
         reply = makeShutdownReply( request.value.header.account_id, getNumActiveOffices());
@@ -144,8 +143,10 @@ void manageRequest(tlv_request_t request, int threadID)
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
     lockAccount(request.value.header.account_id, threadID);
-    if(!validateAccount(request, threadID, userFifoPath)) return;
+    bool validPassword = validateAccount(request, threadID, userFifoPath);
     unlockAccount(request.value.header.account_id, threadID);
+    if (!validPassword)
+        return;
 
     switch(request.type)
     {
@@ -321,9 +322,8 @@ void sendReply(tlv_reply_t reply, char* userFifoPath, int threadID) {
     if (userFifoFD == -1) {
         perror("Opening user Fifo");
         reply.value.header.ret_code = USR_DOWN;
-        return;
     }
-    if (write(userFifoFD, &reply, sizeof(op_type_t) + sizeof(uint32_t) + reply.length) == -1) {
+    else if (write(userFifoFD, &reply, sizeof(op_type_t) + sizeof(uint32_t) + reply.length) == -1) {
         perror("Sending reply");
         exit(1);
     }
