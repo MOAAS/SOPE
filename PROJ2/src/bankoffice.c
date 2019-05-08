@@ -12,7 +12,6 @@ static int* threadNums;
 static int numberOfOffices = 0;
 
 static bool* activeOffices; // partilhadooooooooo
-static bool shutdown = false; // partilhaadoooo
 
 static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
 static RequestQueue* queue;
