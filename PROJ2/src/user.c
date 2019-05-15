@@ -233,6 +233,14 @@ req_header_t makeReqHeader(UserArgs args) {
     header.pid = getpid();
     header.account_id = args.id;
     header.op_delay_ms = args.delayMS;
+    if (header.account_id < 0 || header.account_id > MAX_BANK_ACCOUNTS) {
+        printf("Invalid account ID: %d\n", header.account_id);
+        exit(1);
+    }
+    if (header.op_delay_ms < 0) {
+        printf("Invalid delay: %d\n", header.op_delay_ms);
+        exit(1);
+    }
     strcpy(header.password, args.password);
     return header;
 }
@@ -251,17 +259,20 @@ req_create_account_t makeCreateAccReq(char* args) {
     createAcc.balance = atoi(balance);
     strcpy(createAcc.password, password);
     if (createAcc.account_id <= 0 || createAcc.account_id > MAX_BANK_ACCOUNTS) {
-        printf("Invalid account ID. Args: %s\n", args);
+        printf("Invalid account ID: %s\n", accId);
+        printf("Note that ID must be between %d and %d.\n", 1, MAX_BANK_ACCOUNTS);
         printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
         exit(1);
     }
     if (createAcc.balance <= 0 || createAcc.balance > MAX_BALANCE) {
-        printf("Invalid balance. Args: %s\n", args);
+        printf("Invalid balance: %s\n", balance);
+        printf("Note that balance must be between %d and %d.\n", 1, MAX_BALANCE);
         printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
         exit(1);
     }
     if (strlen(createAcc.password) < MIN_PASSWORD_LEN || strlen(createAcc.password) > MAX_PASSWORD_LEN) {
-        printf("Invalid password: %s. Note that password size must have between %d and %d characters, and no spaces.\n", password, MIN_PASSWORD_LEN, MAX_PASSWORD_LEN);
+        printf("Invalid password: %s.\n", password);
+        printf("Note that password size must have between %d and %d characters, without spaces.\n", MIN_PASSWORD_LEN, MAX_PASSWORD_LEN);
         printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
         exit(1);
     }

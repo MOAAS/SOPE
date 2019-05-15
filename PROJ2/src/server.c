@@ -29,12 +29,15 @@ int main(int argc, char* argv[]) {
     ServerArgs args = processServerArgs(argc, argv);
     openSLog();
 
+
+    setupAccounts(args.adminPassword);
+    createBankOffices(args.numOffices);
+
     makeServerFifo();
     int serverFifoFDR = openServerFifo(O_RDONLY);
     int serverFifoFDW = openServerFifo(O_WRONLY);
+    assignShutdownFD(serverFifoFDW);
 
-    setupAccounts(args.adminPassword);
-    createBankOffices(args.numOffices, serverFifoFDW);    
     readRequests(serverFifoFDR);
 
     destroyBankOffices();

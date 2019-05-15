@@ -19,7 +19,8 @@ static RequestQueue* queue;
 static sem_t queueEmptySem;
 static sem_t queueFullSem;
 
-static int serverFifoFD;
+static int shutdownFD;
+
 void sendReply(tlv_reply_t reply, char* userFifoPath, int threadID);
 
 int getNumActiveOffices() {
@@ -161,8 +162,8 @@ tlv_reply_t handleTransferRequest(tlv_request_t request, int threadID)
         reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, SAME_ID);
         return reply;
     }
-
-    if((srcAccount->balance - request.value.transfer.amount) < 0)
+    
+    if(srcAccount->balance < request.value.transfer.amount)
     {
         reply = makeTransferReply(srcAccount->account_id, srcAccount->balance, NO_FUNDS);
         return reply;
@@ -185,8 +186,8 @@ tlv_reply_t handleTransferRequest(tlv_request_t request, int threadID)
 tlv_reply_t handleShutdownRequest(tlv_request_t request, int threadID) {
     opDelayShutdown(request.value.header.op_delay_ms, threadID);
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
-        fchmod(serverFifoFD, 0444);
-        close(serverFifoFD);
+        fchmod(shutdownFD, 0444);
+        close(shutdownFD);
         return makeShutdownReply(request.value.header.account_id, getNumActiveOffices());
     }
     else return makeErrorReply(OP_NALLOW, request);
@@ -219,9 +220,9 @@ void manageRequest(tlv_request_t request, int threadID)
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
-            getSingleAccountAccess(request.value.header.account_id, request.value.header.op_delay_ms, threadID);
+            getSingleAccountAccess(request.value.create.account_id, request.value.header.op_delay_ms, threadID);
             reply = handleCreateAccountRequest(request, threadID);
-            unlockAccount(request.value.header.account_id, threadID);
+            unlockAccount(request.value.create.account_id, threadID);
             break;
         case OP_BALANCE:
             getSingleAccountAccess(request.value.header.account_id, request.value.header.op_delay_ms, threadID);
@@ -286,8 +287,11 @@ void destroyQueue() {
     }
 }
 
-void createBankOffices(int numOffices, int serverFifoFDW) {
-    serverFifoFD = serverFifoFDW;
+void assignShutdownFD(int fd) {
+    shutdownFD = fd;
+}
+
+void createBankOffices(int numOffices) {
     numOffices = min(numOffices, MAX_BANK_OFFICES);
     numOffices = max(numOffices, 1);
     numberOfOffices = numOffices;
