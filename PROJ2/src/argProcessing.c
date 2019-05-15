@@ -2,7 +2,7 @@
 
 ServerArgs processServerArgs(int argc, char* argv[]) {
     if (argc != 3) {
-        printf("Usage: ./server <NUM_BANK_OFFICES> \"<ADMIN_PASSWORD>\"");
+        printf("Usage: ./server <NUM_BANK_OFFICES> \"<ADMIN_PASSWORD>\"\n");
         exit(1);
     }
 
@@ -24,7 +24,7 @@ ServerArgs processServerArgs(int argc, char* argv[]) {
 
 UserArgs processUserArgs(int argc, char* argv[]) {
     if (argc != 6) {
-        printf("Usage: ./user <ID> \"<Password>\" <Delay> <OPcode> \"<Args>\"");
+        printf("Usage: ./user <ID> \"<Password>\" <Delay> <OPcode> \"<Args>\"\n");
         exit(1);
     }
     UserArgs args;

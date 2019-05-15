@@ -129,7 +129,7 @@ void displayReply(tlv_reply_t reply) {
             printf(" - Balance: %d€\n", reply.value.transfer.balance);
             break;
         case OP_SHUTDOWN:
-            printf("Type: SERVER SHUTDOWN");
+            printf("Type: SERVER SHUTDOWN\n");
             printf(" - Number of active offices: %d\n", reply.value.shutdown.active_offices);
             break;
         case __OP_MAX_NUMBER: break;

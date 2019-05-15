@@ -42,13 +42,13 @@ void waitForRequestFinish() {
 }
 
 void opDelayShutdown(int delayMS, int threadID) {
-    usleep(delayMS * 1000);
     logDelay(getSLogFD(), threadID, delayMS);
+    usleep(delayMS * 1000);
 }
 
 void opDelay(int delayMS, int accID, int threadID) {
-    usleep(delayMS * 1000);
     logSyncDelay(getSLogFD(), threadID, accID, delayMS);
+    usleep(delayMS * 1000);
 }
 
 void getSingleAccountAccess(uint32_t id, int delayMS, int threadID) {
