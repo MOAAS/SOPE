@@ -8,9 +8,9 @@ OBJ_USER = log.c user.c fifoMaker.c argProcessing.c logfileopeners.c replymaker.
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 user: $(OBJ_USER)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -Werror -Wall -o $@ $^ $(CFLAGS)
 
 server: $(OBJ_SERV)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -Werror -Wall -o $@ $^ $(CFLAGS)
 
 clean: rm -f user server

@@ -69,6 +69,7 @@ void displayRequest(tlv_request_t request) {
         case OP_SHUTDOWN:
             printf("Type: SERVER SHUTDOWN\n");
             break;
+        case __OP_MAX_NUMBER: break;
     }
     printf("\n------------------\n");
 }
@@ -113,8 +114,7 @@ void displayReply(tlv_reply_t reply) {
             return;           
         case RC_OTHER:
             printf("Status: Unexpected error.\n");
-            return;           
-
+            return;     
     }
     switch(reply.type) {
         case OP_CREATE_ACCOUNT:
@@ -132,6 +132,7 @@ void displayReply(tlv_reply_t reply) {
             printf("Type: SERVER SHUTDOWN");
             printf(" - Number of active offices: %d\n", reply.value.shutdown.active_offices);
             break;
+        case __OP_MAX_NUMBER: break;
     }
 }
 
@@ -161,8 +162,8 @@ void sendRequest(tlv_request_t request, char* serverFifoPath) {
     logRequest(getULogFD(), getpid(), &request);
     int serverFifoFD = open(serverFifoPath, O_WRONLY | O_NONBLOCK);
     if (serverFifoFD == -1) {
-        perror("Error opening Server Fifo");
         reply = makeErrorReply(SRV_DOWN, request);
+        displayReply(reply);
         logReply(getULogFD(), getpid(), &reply);
         deleteUserFifo();
         exit(0);
@@ -180,8 +181,7 @@ tlv_reply_t awaitReply(char* userFifoPath) {
     enableTimeoutAlarm();    
     int userFifoFD = open(userFifoPath, O_RDONLY);
     if (userFifoFD == -1) {
-        perror("Opening User Fifo");
-        exit(1);
+        return makeErrorReply(USR_DOWN, request);
     }
 
     tlv_reply_t reply = newReply();
@@ -251,7 +251,7 @@ req_create_account_t makeCreateAccReq(char* args) {
     char* password = strtok(NULL, " ");
     if (accId == NULL || balance == NULL || password == NULL) {
         printf("Invalid arguments: %s\n", args);
-        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
+        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"\n");
         exit(1);
     }
     req_create_account_t createAcc;
@@ -261,19 +261,19 @@ req_create_account_t makeCreateAccReq(char* args) {
     if (createAcc.account_id <= 0 || createAcc.account_id > MAX_BANK_ACCOUNTS) {
         printf("Invalid account ID: %s\n", accId);
         printf("Note that ID must be between %d and %d.\n", 1, MAX_BANK_ACCOUNTS);
-        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
+        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"\n");
         exit(1);
     }
     if (createAcc.balance <= 0 || createAcc.balance > MAX_BALANCE) {
         printf("Invalid balance: %s\n", balance);
-        printf("Note that balance must be between %d and %d.\n", 1, MAX_BALANCE);
-        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
+        printf("Note that balance must be between %d and %ld.\n", 1, MAX_BALANCE);
+        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"\n");
         exit(1);
     }
     if (strlen(createAcc.password) < MIN_PASSWORD_LEN || strlen(createAcc.password) > MAX_PASSWORD_LEN) {
         printf("Invalid password: %s.\n", password);
         printf("Note that password size must have between %d and %d characters, without spaces.\n", MIN_PASSWORD_LEN, MAX_PASSWORD_LEN);
-        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"");
+        printf("Create Account Usage: ./user <ID> \"<Password>\" <Delay> 0 \"<ID> <Balance> <Password>\"\n");
         exit(1);
     }
     return createAcc;
@@ -284,20 +284,20 @@ req_transfer_t makeTransferReq(char* args) {
     char* amount = strtok(NULL, " ");
     if (amount == NULL || accId == NULL) {
         printf("Invalid arguments: %s\n", args);
-        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"");
+        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"\n");
         exit(1);
     }
     req_transfer_t transfer;
     transfer.account_id = atoi(accId);
     transfer.amount = atoi(amount);
     if (transfer.account_id <= 0 || transfer.account_id > MAX_BANK_ACCOUNTS) {
-        printf("Invalid account ID. Args: %s\n", args);
-        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"");
+        printf("Invalid account ID: %s\n", accId);
+        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"\n");
         exit(1);
     }
     if (transfer.amount <= 0 || transfer.amount > MAX_BALANCE) {
-        printf("Invalid amount. Args: %s\n", args);
-        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"");
+        printf("Invalid amount: %s\n", amount);
+        printf("Transfer Usage: ./user <ID> \"<Password>\" <Delay> 2 \"<ID> <Amount>\"\n");
         exit(1);
     }
     return transfer;

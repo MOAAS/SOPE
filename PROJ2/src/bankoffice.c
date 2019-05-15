@@ -207,7 +207,6 @@ void manageRequest(tlv_request_t request, int threadID)
     char* userFifoPath = getUserFifoPath(request.value.header.pid);
 
     lockAccount(request.value.header.account_id, threadID);
-    bank_account_t* account;
     tlv_reply_t reply;
     bool validAccount = validateAccount(request, &reply);
     unlockAccount(request.value.header.account_id, threadID);
@@ -237,6 +236,7 @@ void manageRequest(tlv_request_t request, int threadID)
         case OP_SHUTDOWN:
             reply = handleShutdownRequest(request, threadID);
             break;
+        case __OP_MAX_NUMBER: break;
     }
 
     sendReply(reply ,userFifoPath, threadID);
