@@ -12,7 +12,7 @@ static pthread_t* officeTids;
 static int* threadNums;
 static int numberOfOffices = 0;
 
-static bool* activeOffices; // partilhadooooooooo
+static bool* activeOffices;
 
 static pthread_mutex_t queueMutex = PTHREAD_MUTEX_INITIALIZER;
 static RequestQueue* queue;
@@ -40,9 +40,46 @@ void waitForRequestFinish() {
     while (getNumActiveOffices() > 0);
 }
 
-void opDelay(int delayMS, int threadID) {
+void opDelayShutdown(int delayMS, int threadID) {
     usleep(delayMS * 1000);
     logDelay(getSLogFD(), threadID, delayMS);
+}
+
+void opDelay(int delayMS, int accID, int threadID) {
+    usleep(delayMS * 1000);
+    logSyncDelay(getSLogFD(), threadID, accID, delayMS);
+}
+
+void getSingleAccountAccess(uint32_t id, int delayMS, int threadID) {
+    lockAccount(id, threadID);
+    opDelay(delayMS, id, threadID);
+}
+
+void getDoubleAccountAccess(uint32_t id1, uint32_t id2, int delayMS, int threadID) {
+    if (id1 == id2) {
+        lockAccount(id1, threadID);
+        opDelay(delayMS, id1, threadID);
+        return;
+    }
+    uint32_t first, second;
+    first = min(id1, id2);
+    second = max(id1, id2);
+    lockAccount(first, threadID);
+    opDelay(delayMS, first, threadID);
+    lockAccount(second, threadID);
+    opDelay(delayMS, second, threadID);
+}
+
+void unlockDoubleAccount(uint32_t id1, uint32_t id2, int threadID) {
+    if (id1 == id2) {
+        unlockAccount(id1, threadID);
+        return;
+    }
+    uint32_t first, second;
+    first = max(id1, id2);
+    second = min(id1, id2);
+    unlockAccount(first, threadID);
+    unlockAccount(second, threadID);
 }
 
 bool validateAccount(tlv_request_t request, tlv_reply_t* reply)
@@ -60,15 +97,16 @@ bool validateAccount(tlv_request_t request, tlv_reply_t* reply)
 
     if(strcmp(hash, account->hash) != 0) {
         *reply = makeErrorReply(LOGIN_FAIL, request);
+        free(hash);
         return false;
     }
 
+    free(hash);
     return true;
 }
 
 tlv_reply_t handleCreateAccountRequest(tlv_request_t request, int threadID)
 {
-    opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
     uint32_t accountID = request.value.header.account_id;
     uint32_t newAccId = request.value.create.account_id;
@@ -96,7 +134,6 @@ tlv_reply_t handleCreateAccountRequest(tlv_request_t request, int threadID)
 
 tlv_reply_t handleTransferRequest(tlv_request_t request, int threadID)
 {
-    opDelay(request.value.header.op_delay_ms, threadID);
     tlv_reply_t reply;
     bank_account_t* srcAccount = getAccount(request.value.header.account_id);
     bank_account_t* destAccount = getAccount(request.value.transfer.account_id);
@@ -146,7 +183,7 @@ tlv_reply_t handleTransferRequest(tlv_request_t request, int threadID)
 }
 
 tlv_reply_t handleShutdownRequest(tlv_request_t request, int threadID) {
-    opDelay(request.value.header.op_delay_ms, threadID);
+    opDelayShutdown(request.value.header.op_delay_ms, threadID);
     if (request.value.header.account_id == ADMIN_ACCOUNT_ID) {
         fchmod(serverFifoFD, 0444);
         close(serverFifoFD);
@@ -157,7 +194,6 @@ tlv_reply_t handleShutdownRequest(tlv_request_t request, int threadID) {
 
 tlv_reply_t handleBalanceRequest(tlv_request_t request, int threadID)
 {
-    opDelay(request.value.header.op_delay_ms, threadID);
     if (request.value.header.account_id != ADMIN_ACCOUNT_ID) {
         bank_account_t* account = getAccount(request.value.header.account_id);
         return makeBalanceReply(account->account_id, account->balance);
@@ -183,17 +219,17 @@ void manageRequest(tlv_request_t request, int threadID)
     switch(request.type)
     {
         case OP_CREATE_ACCOUNT:
-            lockAccount(request.value.header.account_id, threadID);
+            getSingleAccountAccess(request.value.header.account_id, request.value.header.op_delay_ms, threadID);
             reply = handleCreateAccountRequest(request, threadID);
             unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_BALANCE:
-            lockAccount(request.value.header.account_id, threadID);
+            getSingleAccountAccess(request.value.header.account_id, request.value.header.op_delay_ms, threadID);
             reply = handleBalanceRequest(request, threadID);
             unlockAccount(request.value.header.account_id, threadID);
             break;
         case OP_TRANSFER:
-            lockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
+            getDoubleAccountAccess(request.value.header.account_id, request.value.transfer.account_id, request.value.header.op_delay_ms, threadID);
             reply = handleTransferRequest(request, threadID);
             unlockDoubleAccount(request.value.header.account_id, request.value.transfer.account_id, threadID);
             break;
@@ -303,15 +339,6 @@ void addRequestToQueue(tlv_request_t request) {
 
     sem_getvalue(&queueFullSem, &semValue);
     logSyncMechSem(getSLogFD(), 0, SYNC_OP_SEM_POST, SYNC_ROLE_PRODUCER, request.value.header.pid, semValue);
-    
-    // DEBUG
-    printf("ADD REQUEST::::\n");
-    printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
-    printf("Type = %d | Length = %d \n", request.type, request.length);
-    if (request.type == OP_CREATE_ACCOUNT)
-        printf("Create ACC: ID = %d | Bal = %d | Pass = \"%s\"\n", request.value.create.account_id, request.value.create.balance, request.value.create.password);
-    if (request.type == OP_TRANSFER)
-        printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
 }
 
 // Consumidor
@@ -336,17 +363,7 @@ tlv_request_t getRequestFromQueue(int threadID) {
     logSyncMechSem(getSLogFD(), threadID, SYNC_OP_SEM_POST, SYNC_ROLE_CONSUMER, request.value.header.pid, semValue);
 
     logRequest(getSLogFD(), threadID, &request);
-
-    // DEBUG
-    printf("GOT REQUEST::::\n");
-    printf("Pid = %d | AccID = %d | Delay = %d | Pass = \"%s\"\n", request.value.header.pid, request.value.header.account_id, request.value.header.op_delay_ms, request.value.header.password);
-    printf("Type = %d | Length = %d \n", request.type, request.length);
-    if (request.type == OP_CREATE_ACCOUNT)
-        printf("Create ACC: ID = %d | Bal = %d | Pass = \"%s\"\n", request.value.create.account_id, request.value.create.balance, request.value.create.password);
-    if (request.type == OP_TRANSFER)
-        printf("Transfer: ID = %d | amount = %d \n",  request.value.transfer.account_id, request.value.transfer.amount);
-
-    
+        
     return request;
 }
 

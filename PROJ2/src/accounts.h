@@ -22,6 +22,3 @@ bank_account_t* getAccount(uint32_t account_id);
 
 void lockAccount(uint32_t id, int threadID);
 void unlockAccount(uint32_t id, int threadID);
-void lockDoubleAccount(uint32_t id1, uint32_t id2, int threadID);
-void unlockDoubleAccount(uint32_t id1, uint32_t id2, int threadID);
-
