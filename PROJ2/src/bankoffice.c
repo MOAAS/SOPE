@@ -90,7 +90,7 @@ bool validateAccount(tlv_request_t request, tlv_reply_t* reply)
     
     if(account == NULL)
     {
-        *reply = makeErrorReply(LOGIN_FAIL, request);
+        *reply = makeErrorReply(ID_NOT_FOUND, request);
         return false;
     }
 
