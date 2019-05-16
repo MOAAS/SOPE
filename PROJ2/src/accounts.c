@@ -1,5 +1,8 @@
 #include "accounts.h"
 
+#define PIPE_READ 0
+#define PIPE_WRITE 1
+
 static pthread_mutex_t accountMutexes[MAX_BANK_ACCOUNTS];
 static bank_account_t accounts[MAX_BANK_ACCOUNTS];
 static bool usedAccounts[MAX_BANK_ACCOUNTS];
@@ -63,14 +66,23 @@ char* generateSalt() {
 
 char* generateHash(char* password, char* salt) {
     char* hash = malloc(HASH_LEN + 1);
-    char* command = malloc(1000);
-    sprintf(command, "echo -n %s%s | sha256sum", password, salt);
-    FILE* fp = popen(command ,"r");
-    if (fp == NULL) {
-        perror(command);
-        exit(1);
+
+    int fd1[2], fd2[2];
+    pipe(fd1);
+    pipe(fd2);
+    if(fork() == 0) {
+        close(fd1[PIPE_READ]);
+        close(fd2[PIPE_WRITE]);
+        dup2(fd1[PIPE_WRITE], STDOUT_FILENO);
+        dup2(fd2[PIPE_READ], STDIN_FILENO);
+        execlp("sha256sum", "sha256sum", NULL);
+        exit(0);
+    } else {
+        close(fd2[PIPE_READ]);
+        close(fd1[PIPE_WRITE]);
+        write(fd2[PIPE_WRITE], strcat(password, salt), HASH_LEN);
+        read(fd1[PIPE_READ], hash, HASH_LEN);
     }
-    fgets(hash, HASH_LEN + 1, fp);
-    free(command);
+
     return hash;
 }

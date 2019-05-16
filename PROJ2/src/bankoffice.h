@@ -6,7 +6,7 @@
 
 #include "logfileopeners.h"
 #include "queue.h"
-#include "fifomaker.h"
+#include "fifoMaker.h"
 #include "replymaker.h"
 
 void* runBankOffice();
