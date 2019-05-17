@@ -37,9 +37,11 @@ void unlockAccount(uint32_t id, int threadID) {
     logSyncMech(getSLogFD(), threadID, SYNC_OP_MUTEX_UNLOCK, SYNC_ROLE_ACCOUNT, id);
 }
 
-bank_account_t createAccount(uint32_t id, uint32_t balance, char* password, int threadNum) {
+void createAccount(uint32_t id, uint32_t balance, char* password, int threadNum) {
     char* salt = generateSalt();
     char* hash = generateHash(password, salt);
+    if (salt == NULL || hash == NULL)
+        return;
     bank_account_t account;
     account.account_id = id;
     account.balance = balance;
@@ -52,11 +54,9 @@ bank_account_t createAccount(uint32_t id, uint32_t balance, char* password, int 
     usedAccounts[id] = true;
 
     logAccountCreation(getSLogFD(), threadNum, &account);
-    return account;
 }
 
 char* generateSalt() {
-    srand(100);
     char* salt = malloc(SALT_LEN + 1);
     for(int i = 0; i < SALT_LEN; i++) {
         sprintf(salt + i, "%x", rand() % 16);
@@ -66,25 +66,72 @@ char* generateSalt() {
 
 char* generateHash(char* password, char* salt) {
     char* hash = malloc(HASH_LEN + 1);
+    char* concatd = malloc(1000);
+    sprintf(concatd, "%s%s", password, salt);
+
 
     int fd1[2], fd2[2];
     pipe(fd1);
     pipe(fd2);
     if(fork() == 0) {
-        close(fd1[PIPE_READ]);
-        close(fd2[PIPE_WRITE]);
-        dup2(fd1[PIPE_WRITE], STDOUT_FILENO);
-        dup2(fd2[PIPE_READ], STDIN_FILENO);
-        execlp("sha256sum", "sha256sum", NULL);
+        if (close(fd1[PIPE_READ]) == -1) {
+            perror("Error closing coprocess FD1[READ]");
+            exit(1);
+        }
+        if (close(fd2[PIPE_WRITE]) == -1) {
+            perror("Error closing coprocess FD2[WRITE]");
+            exit(1);
+        }
+        if (dup2(fd1[PIPE_WRITE], STDOUT_FILENO) == -1) {
+            perror("Error invoking dup2 to STDOUT");
+            exit(1);
+        }
+        if (dup2(fd2[PIPE_READ], STDIN_FILENO) == -1) {
+            perror("Error invoking dup2 to STDIN");
+            exit(1);
+        }
+        if (execlp("sha256sum", "sha256sum", NULL) == -1) {
+            perror("Error invoking execlp");
+            exit(1);
+        }
         exit(0);
     } else {
-        close(fd2[PIPE_READ]);
-        close(fd1[PIPE_WRITE]);
-        write(fd2[PIPE_WRITE], strcat(password, salt), HASH_LEN);
-        close(fd2[PIPE_WRITE]);
-        read(fd1[PIPE_READ], hash, HASH_LEN);
-        close(fd1[PIPE_READ]);
+        if (close(fd2[PIPE_READ]) == -1) {
+            perror("Error closing process FD2[READ]");
+            return NULL;
+        }
+        if (close(fd1[PIPE_WRITE]) == -1) {
+            perror("Error closing process FD1[WRITE]");    
+            return NULL;
+        }    
+        if (write(fd2[PIPE_WRITE], concatd, strlen(concatd)) != strlen(concatd)) {
+            printf("Error writing to FD2[WRITE]\n");
+            return NULL;
+        }
+        if (close(fd2[PIPE_WRITE]) == -1) {
+            perror("Error closing process FD2[WRITE]");
+            return NULL;
+        }
+        if (read(fd1[PIPE_READ], hash, HASH_LEN) != HASH_LEN) {
+            printf("Error reading from FD1[READ]\n");
+            return NULL;
+        }
+        if (close(fd1[PIPE_READ]) == -1) {
+            perror("Error closing process FD1[READ]");
+            return NULL;
+        }
     }
+
+
+    hash[HASH_LEN] = '\0';
+
+    /*
+    dup2(getSLogFD(), STDOUT_FILENO);
+    printf("concatd: %s\n", concatd);
+    printf("pass: %s\n", password);
+    printf("hash: %s\n", hash);
+    printf("salt: %s\n", salt);
+    */
 
     return hash;
 }

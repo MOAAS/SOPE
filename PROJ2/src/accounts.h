@@ -10,7 +10,7 @@
 void clearAccounts();
 void destroyAccounts();
 
-bank_account_t createAccount(uint32_t id, uint32_t balance, char* password, int threadNum);
+void createAccount(uint32_t id, uint32_t balance, char* password, int threadNum);
 
 char* generateSalt();
 char* generateHash(char* password, char* salt);
