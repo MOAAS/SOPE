@@ -81,7 +81,9 @@ char* generateHash(char* password, char* salt) {
         close(fd2[PIPE_READ]);
         close(fd1[PIPE_WRITE]);
         write(fd2[PIPE_WRITE], strcat(password, salt), HASH_LEN);
+        close(fd2[PIPE_WRITE]);
         read(fd1[PIPE_READ], hash, HASH_LEN);
+        close(fd1[PIPE_READ]);
     }
 
     return hash;
