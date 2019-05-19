@@ -4,6 +4,8 @@ DEPS = constants.h sope.h types.h argProcessing.h fifoMaker.h accounts.h bankoff
 OBJ_SERV = log.c server.c fifoMaker.c argProcessing.c accounts.c bankoffice.c logfileopeners.c queue.c replymaker.c
 OBJ_USER = log.c user.c fifoMaker.c argProcessing.c logfileopeners.c replymaker.c
 
+all: user server
+
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
